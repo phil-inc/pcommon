@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/phil-inc/pcommon/data"
-	"github.com/phil-inc/pcommon/pconfig"
 	"github.com/phil-inc/pcommon/util"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -21,13 +20,12 @@ import (
 )
 
 // GetClient get the client to work with g suite
-func GetClient(ctx context.Context) (*http.Client, error) {
-	data, err := loadGoogleCredCfgs(ctx)
-	if err != nil {
-		return nil, err
-	}
+func GetClient(ctx context.Context, googleCreds data.GoogleCreds) (*http.Client, error) {
 
-	conf, err := google.JWTConfigFromJSON(data, "https://www.googleapis.com/auth/drive")
+	cs := util.ToJSON(googleCreds)
+	googleCredsByte := []byte(cs)
+
+	conf, err := google.JWTConfigFromJSON(googleCredsByte, "https://www.googleapis.com/auth/drive")
 	if err != nil {
 		return nil, err
 	}
@@ -41,13 +39,13 @@ func GetClient(ctx context.Context) (*http.Client, error) {
 }
 
 //ExportCSVToSheet takes the csvData to create a google sheet in the drive
-func ExportCSVToSheet(ctx context.Context, namePrefix, csvData string) (string, error) {
-	client, err := GetClient(ctx)
+func ExportCSVToSheet(ctx context.Context, namePrefix, csvData string, googleCreds data.GoogleCreds, driveFolderId string) (string, error) {
+	client, err := GetClient(ctx, googleCreds)
 	if err != nil {
 		return "", err
 	}
 
-	resp, err := CreateGoogleSheetInDrive(ctx, namePrefix)
+	resp, err := CreateGoogleSheetInDrive(ctx, namePrefix, googleCreds, driveFolderId)
 	if err != nil {
 		return "", err
 	}
@@ -85,8 +83,8 @@ func ExportCSVToSheet(ctx context.Context, namePrefix, csvData string) (string, 
 	return resp.AlternateLink, nil
 }
 
-func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string) (*drive.File, error) {
-	client, err := GetClient(ctx)
+func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string, googleCreds data.GoogleCreds, driveFolderId string) (*drive.File, error) {
+	client, err := GetClient(ctx, googleCreds)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +97,7 @@ func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string) (*drive.Fi
 	//Create a new sheet
 	title := fmt.Sprintf("%s-sheet-%s", namePrefix, util.USFormatDate(util.NowPST()))
 	fi := &drive.File{Title: title, Description: "description", MimeType: "application/vnd.google-apps.spreadsheet"}
-	p := &drive.ParentReference{Id: pconfig.GetString("google.drive.folderId")}
+	p := &drive.ParentReference{Id: driveFolderId}
 	fi.Parents = []*drive.ParentReference{p}
 
 	resp, err := srv.Files.Insert(fi).Do()
@@ -151,8 +149,8 @@ func ReadDataFromGoogleSpreadSheet(sheetURL string) ([][]string, error) {
 	return response.ValueRanges[0].Values, nil
 }
 
-func ReadDataFromGoogleSpreadSheetByIDAndRange(ctx context.Context, sheetId, readRange string) ([][]interface{}, error) {
-	client, err := GetClient(context.Background())
+func ReadDataFromGoogleSpreadSheetByIDAndRange(ctx context.Context, sheetId, readRange string, googleCreds data.GoogleCreds) ([][]interface{}, error) {
+	client, err := GetClient(context.Background(), googleCreds)
 	if err != nil {
 		return nil, err
 	}
@@ -170,8 +168,8 @@ func ReadDataFromGoogleSpreadSheetByIDAndRange(ctx context.Context, sheetId, rea
 	return resp.Values, nil
 }
 
-func ReadMetaDataFromGoogleSpreadSheetByID(sheetId string) (*FileMetaData, error) {
-	client, err := GetClient(context.Background())
+func ReadMetaDataFromGoogleSpreadSheetByID(sheetId string, googleCreds data.GoogleCreds) (*FileMetaData, error) {
+	client, err := GetClient(context.Background(), googleCreds)
 	if err != nil {
 		return nil, err
 	}
@@ -197,8 +195,8 @@ func ReadMetaDataFromGoogleSpreadSheetByID(sheetId string) (*FileMetaData, error
 }
 
 //ExportDataToGoogleSheetByIDAndRange takes the spreadsheet rows update the specified google sheet
-func ExportDataToGoogleSheetByIDAndRange(sheetId, writeRange string, rows [][]interface{}) error {
-	client, err := GetClient(oauth2.NoContext)
+func ExportDataToGoogleSheetByIDAndRange(sheetId, writeRange string, rows [][]interface{}, googleCreds data.GoogleCreds) error {
+	client, err := GetClient(oauth2.NoContext, googleCreds)
 	if err != nil {
 		return err
 	}
@@ -221,28 +219,9 @@ func ExportDataToGoogleSheetByIDAndRange(sheetId, writeRange string, rows [][]in
 	return nil
 }
 
-// loading from platfromConfig only
-func loadGoogleCredCfgs(ctx context.Context) ([]byte, error) {
-	var gcred data.GoogleCreds
-
-	gcred.AuthURI = pconfig.GetString("googleCreds.auth_uri")
-	gcred.ClientCertURI = pconfig.GetString("googleCreds.client_x509_cert_url")
-	gcred.ClientEmail = pconfig.GetString("googleCreds.client_email")
-	gcred.ClientID = pconfig.GetString("googleCreds.client_id")
-	gcred.PrivateKey = pconfig.GetString("googleCreds.private_key")
-	gcred.ProjectID = pconfig.GetString("google.projectId")
-	gcred.PrivateKeyID = pconfig.GetString("google.privateKeyId")
-	gcred.ProviderCertURI = pconfig.GetString("googleCreds.auth_provider_x509_cert_url")
-	gcred.TokenURI = pconfig.GetString("googleCreds.token_uri")
-	gcred.Type = pconfig.GetString("googleCreds.type")
-
-	cs := util.ToJSON(gcred)
-	return []byte(cs), nil
-}
-
 //ExportDataToGoogleSheetByIDAndRange takes the spreadsheet rows update the specified google sheet and parse as user typed
-func ExportDataToGoogleSheetByIDAndRangeParsedAsUserTyped(sheetId, writeRange string, rows [][]interface{}) error {
-	client, err := GetClient(oauth2.NoContext)
+func ExportDataToGoogleSheetByIDAndRangeParsedAsUserTyped(sheetId, writeRange string, rows [][]interface{}, googleCreds data.GoogleCreds) error {
+	client, err := GetClient(oauth2.NoContext, googleCreds)
 	if err != nil {
 		return err
 	}
@@ -266,8 +245,8 @@ func ExportDataToGoogleSheetByIDAndRangeParsedAsUserTyped(sheetId, writeRange st
 }
 
 //ClearDataOfGoogleSheetByIDAndRange clears column data of the specified range
-func ClearDataOfGoogleSheetByIDAndRange(sheetId string, clearRanges []string) error {
-	client, err := GetClient(oauth2.NoContext)
+func ClearDataOfGoogleSheetByIDAndRange(sheetId string, clearRanges []string, googleCreds data.GoogleCreds) error {
+	client, err := GetClient(oauth2.NoContext, googleCreds)
 	if err != nil {
 		return err
 	}
@@ -288,98 +267,3 @@ func ClearDataOfGoogleSheetByIDAndRange(sheetId string, clearRanges []string) er
 
 	return nil
 }
-
-// // after
-// // Retrieve a token, saves the token, then returns the generated client.
-// func geetClient(config *oauth2.Config) *http.Client {
-// 	// The file token.json stores the user's access and refresh tokens, and is
-// 	// created automatically when the authorization flow completes for the first
-// 	// time.
-// 	tokFile := "token.json"
-// 	tok, err := tokenFromFile(tokFile)
-// 	if err != nil {
-// 		tok = getTokenFromWeb(config)
-// 		saveToken(tokFile, tok)
-// 	}
-// 	return config.Client(context.Background(), tok)
-// }
-
-// // Request a token from the web, then returns the retrieved token.
-// func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-// 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-// 	fmt.Printf("Go to the following link in your browser then type the "+
-// 		"authorization code: \n%v\n", authURL)
-
-// 	var authCode string
-// 	if _, err := fmt.Scan(&authCode); err != nil {
-// 		log.Fatalf("Unable to read authorization code: %v", err)
-// 	}
-
-// 	tok, err := config.Exchange(context.TODO(), authCode)
-// 	if err != nil {
-// 		log.Fatalf("Unable to retrieve token from web: %v", err)
-// 	}
-// 	return tok
-// }
-
-// // Retrieves a token from a local file.
-// func tokenFromFile(file string) (*oauth2.Token, error) {
-// 	f, err := os.Open(file)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer f.Close()
-// 	tok := &oauth2.Token{}
-// 	err = json.NewDecoder(f).Decode(tok)
-// 	return tok, err
-// }
-
-// // Saves a token to a file path.
-// func saveToken(path string, token *oauth2.Token) {
-// 	fmt.Printf("Saving credential file to: %s\n", path)
-// 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-// 	if err != nil {
-// 		log.Fatalf("Unable to cache oauth token: %v", err)
-// 	}
-// 	defer f.Close()
-// 	json.NewEncoder(f).Encode(token)
-// }
-
-// func main() {
-// 	ctx := context.Background()
-// 	b, err := ioutil.ReadFile("credentials.json")
-// 	if err != nil {
-// 		log.Fatalf("Unable to read client secret file: %v", err)
-// 	}
-
-// 	// If modifying these scopes, delete your previously saved token.json.
-// 	config, err := google.ConfigFromJSON(b, "https://www.googleapis.com/auth/spreadsheets.readonly")
-// 	if err != nil {
-// 		log.Fatalf("Unable to parse client secret file to config: %v", err)
-// 	}
-// 	client := getClient(config)
-
-// 	srv, err := sheets.NewService(ctx, option.WithHTTPClient(client))
-// 	if err != nil {
-// 		log.Fatalf("Unable to retrieve Sheets client: %v", err)
-// 	}
-
-// 	// Prints the names and majors of students in a sample spreadsheet:
-// 	// https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
-// 	spreadsheetId := "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
-// 	readRange := "Class Data!A2:E"
-// 	resp, err := srv.Spreadsheets.Values.Get(spreadsheetId, readRange).Do()
-// 	if err != nil {
-// 		log.Fatalf("Unable to retrieve data from sheet: %v", err)
-// 	}
-
-// 	if len(resp.Values) == 0 {
-// 		fmt.Println("No data found.")
-// 	} else {
-// 		fmt.Println("Name, Major:")
-// 		for _, row := range resp.Values {
-// 			// Print columns A and E, which correspond to indices 0 and 4.
-// 			fmt.Printf("%s, %s\n", row[0], row[4])
-// 		}
-// 	}
-// }
