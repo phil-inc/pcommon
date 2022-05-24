@@ -56,11 +56,8 @@ func ValidateForStandard11DigitNDC(ndc string) bool {
 	}
 
 	sndc := SanitizeNDC(ndc)
-	if len(sndc) != 11 {
-		return false
-	}
 
-	return true
+	return len(sndc) == 11
 }
 
 //ConvertNDCTo11Digits returns ndc in 11 digits
