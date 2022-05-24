@@ -6,11 +6,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-func GetS3Client(assessKey string, secretKey string, region string) *s3.Client {
+func GetS3Client(assessKey, secretKey, region string) *s3.Client {
+
 	opts := s3.Options{
 		Region:      *aws.String(region),
 		Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(assessKey, secretKey, "")),
 	}
+
 	// Create an Amazon S3 service client
 	client := s3.New(opts)
 
