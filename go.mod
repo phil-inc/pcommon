@@ -1,8 +1,12 @@
 module github.com/phil-inc/pcommon
 
-go 1.17
+go 1.18
+
+require github.com/jlaffaye/ftp v0.0.0-20220310202011-d2c44e311e78
 
 require (
+	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/phil-inc/plog v0.0.0-20190215205726-104ca8d1669e
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
 	google.golang.org/api v0.80.0
