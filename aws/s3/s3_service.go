@@ -3,48 +3,102 @@ package s3
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"io/ioutil"
+	"net/url"
+	"os"
+	"path"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-func CreateBucket(client *s3.Client, bucket string) (*s3.CreateBucketOutput, error) {
+type BucketLists struct {
+	*s3.ListBucketsOutput
+}
+
+type FileLists struct {
+	*s3.ListObjectsV2Output
+}
+
+// Struct for storing the bucket and key for an item on s3.
+type Item struct {
+	Bucket string `json:"bucket"`
+	Key    string `json:"key"`
+}
+
+// Return a URI representation of an S3Item struct.
+func (s3Key *Item) URI() string {
+	path := path.Join(s3Key.Bucket, s3Key.Key)
+
+	s3URI := fmt.Sprintf("s3://%s", path)
+
+	return s3URI
+}
+
+// Parses an s3 URI for easy access to its different components.
+// We store our s3 keys as URIs, to include all details necessary for retrieval.
+func ParseS3URI(s3URI string) (*Item, error) {
+	u, err := url.Parse(s3URI)
+	if err != nil {
+		return nil, err
+	}
+
+	item := Item{
+		Bucket: u.Host,
+		Key:    u.Path,
+	}
+
+	return &item, nil
+}
+
+func CreateBucket(client *s3.Client, bucket string) (*string, error) {
 	input := &s3.CreateBucketInput{
 		Bucket: aws.String(bucket),
 	}
 
-	return client.CreateBucket(context.Background(), input)
+	_, err := client.CreateBucket(context.Background(), input)
+	if err != nil {
+		return nil, err
+	}
+
+	// Before returning the key, create an s3 key (URI)
+	item := Item{
+		Bucket: bucket,
+	}
+	s3URI := item.URI()
+
+	return &s3URI, nil
 }
 
-func ListBuckets(client *s3.Client) (*s3.ListBucketsOutput, error) {
+func ListBuckets(client *s3.Client) (*BucketLists, error) {
 	input := &s3.ListBucketsInput{}
 
-	return client.ListBuckets(context.Background(), input)
+	result, err := client.ListBuckets(context.Background(), input)
+	if err != nil {
+		return nil, err
+	}
+	res := BucketLists{result}
+	return &res, nil
 }
 
-func ListFiles(client *s3.Client, bucket *string) (*s3.ListObjectsV2Output, error) {
+func ListFiles(client *s3.Client, bucket *string) (*FileLists, error) {
 
 	input := &s3.ListObjectsV2Input{
 		Bucket: bucket,
 	}
 
-	return client.ListObjectsV2(context.Background(), input)
-}
-
-func GetFileAcl(client *s3.Client, bucket *string, name string) (*s3.GetObjectAclOutput, error) {
-	key := name
-
-	input := &s3.GetObjectAclInput{
-		Bucket: aws.String(*bucket),
-		Key:    aws.String(key),
+	result, err := client.ListObjectsV2(context.Background(), input)
+	if err != nil {
+		return nil, err
 	}
-
-	return client.GetObjectAcl(context.Background(), input)
+	res := FileLists{result}
+	return &res, nil
 }
 
-func GetFile(client *s3.Client, bucket *string, name *string) (*s3.GetObjectOutput, error) {
+func getFile(client *s3.Client, bucket *string, name *string) (*s3.GetObjectOutput, error) {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(*bucket),
 		Key:    aws.String(*name),
@@ -53,7 +107,7 @@ func GetFile(client *s3.Client, bucket *string, name *string) (*s3.GetObjectOutp
 	return client.GetObject(context.Background(), input)
 }
 
-func UploadFile(client *s3.Client, bucket string, filename string, file io.Reader) (*manager.UploadOutput, error) {
+func UploadFile(client *s3.Client, bucket string, filename string, file io.Reader) (*string, error) {
 	input := &s3.PutObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(filename),
@@ -62,7 +116,18 @@ func UploadFile(client *s3.Client, bucket string, filename string, file io.Reade
 
 	uploader := manager.NewUploader(client)
 
-	return uploader.Upload(context.Background(), input)
+	_, err := uploader.Upload(context.Background(), input)
+	if err != nil {
+		return nil, err
+	}
+	// Before returning the key, create an s3 key (URI)
+	item := Item{
+		Bucket: bucket,
+		Key:    filename,
+	}
+	s3URI := item.URI()
+
+	return &s3URI, nil
 }
 
 func DownloadFile(client *s3.Client, bucket, filename string) ([]byte, error) {
@@ -83,7 +148,7 @@ func DownloadFile(client *s3.Client, bucket, filename string) ([]byte, error) {
 }
 
 func ReadFile(client *s3.Client, bucket *string, name *string) (string, error) {
-	file, err := GetFile(client, bucket, name)
+	file, err := getFile(client, bucket, name)
 	if err != nil {
 		return "", err
 	}
@@ -93,4 +158,44 @@ func ReadFile(client *s3.Client, bucket *string, name *string) (string, error) {
 	content := buf.String()
 
 	return content, nil
+}
+
+func DownloadFileToPath(client *s3.Client, bucket, fileName, filePath string) error {
+	b, err := DownloadFile(client, bucket, fileName)
+
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(filePath, b, 0644)
+	return err
+}
+
+func UploadFileFromPath(client *s3.Client, bucket, fileName, filePath string) (*string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %q, %v", filePath, err)
+	}
+
+	defer f.Close()
+
+	filename := path.Base(filePath)
+
+	upload, err := UploadFile(client, bucket, filename, f)
+
+	if err != nil {
+		return nil, err
+	}
+	return upload, nil
+}
+
+func UploadImage(client *s3.Client, fileName string, fileByte []byte, bucket string) (*string, error) {
+	reader := bytes.NewReader(fileByte)
+
+	upload, err := UploadFile(client, bucket, fileName, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return upload, nil
 }
