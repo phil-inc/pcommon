@@ -1,4 +1,4 @@
-package network
+package google_sheets
 
 import (
 	"context"
@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/phil-inc/pcommon/data"
-	"github.com/phil-inc/pcommon/util"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	drive "google.golang.org/api/drive/v2"
@@ -20,9 +18,9 @@ import (
 )
 
 // GetClient get the client to work with g suite
-func GetClient(ctx context.Context, googleCreds data.GoogleCreds) (*http.Client, error) {
+func GetClient(ctx context.Context, googleCreds GoogleCreds) (*http.Client, error) {
 
-	cs := util.ToJSON(googleCreds)
+	cs := ToJSON(googleCreds)
 	googleCredsByte := []byte(cs)
 
 	conf, err := google.JWTConfigFromJSON(googleCredsByte, "https://www.googleapis.com/auth/drive")
@@ -39,7 +37,7 @@ func GetClient(ctx context.Context, googleCreds data.GoogleCreds) (*http.Client,
 }
 
 //ExportCSVToSheet takes the csvData to create a google sheet in the drive
-func ExportCSVToSheet(ctx context.Context, namePrefix, csvData string, googleCreds data.GoogleCreds, driveFolderId string) (string, error) {
+func ExportCSVToSheet(ctx context.Context, namePrefix, csvData string, googleCreds GoogleCreds, driveFolderId string) (string, error) {
 	client, err := GetClient(ctx, googleCreds)
 	if err != nil {
 		return "", err
@@ -83,7 +81,7 @@ func ExportCSVToSheet(ctx context.Context, namePrefix, csvData string, googleCre
 	return resp.AlternateLink, nil
 }
 
-func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string, googleCreds data.GoogleCreds, driveFolderId string) (*drive.File, error) {
+func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string, googleCreds GoogleCreds, driveFolderId string) (*drive.File, error) {
 	client, err := GetClient(ctx, googleCreds)
 	if err != nil {
 		return nil, err
@@ -95,7 +93,7 @@ func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string, googleCred
 	}
 
 	//Create a new sheet
-	title := fmt.Sprintf("%s-sheet-%s", namePrefix, util.USFormatDate(util.NowPST()))
+	title := fmt.Sprintf("%s-sheet-%s", namePrefix, USFormatDate(NowPST()))
 	fi := &drive.File{Title: title, Description: "description", MimeType: "application/vnd.google-apps.spreadsheet"}
 	p := &drive.ParentReference{Id: driveFolderId}
 	fi.Parents = []*drive.ParentReference{p}
@@ -105,27 +103,6 @@ func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string, googleCred
 		return nil, err
 	}
 	return resp, nil
-}
-
-type FileMetaData struct {
-	ResourceKey       string            `json:"resourceKey"`
-	LinkShareMetaData linkShareMetaData `json:"linkShareMetaData"`
-}
-
-type linkShareMetaData struct {
-	SecurityUpdateEligible bool `json:"securityUpdateEligible"`
-	SecurityUpdateEnabled  bool `json:"securityUpdateEnabled"`
-}
-
-type spreadSheetData struct {
-	ID          string        `json:"spreadsheetId"`
-	ValueRanges []valueRanges `json:"valueRanges"`
-}
-
-type valueRanges struct {
-	Range          string     `json:"range"`
-	MajorDimension string     `json:"majorDimension"`
-	Values         [][]string `json:"values"`
 }
 
 //ReadDataFromGoogleSpreadSheet gets data from Google spreadsheet
@@ -149,7 +126,7 @@ func ReadDataFromGoogleSpreadSheet(sheetURL string) ([][]string, error) {
 	return response.ValueRanges[0].Values, nil
 }
 
-func ReadDataFromGoogleSpreadSheetByIDAndRange(ctx context.Context, sheetId, readRange string, googleCreds data.GoogleCreds) ([][]interface{}, error) {
+func ReadDataFromGoogleSpreadSheetByIDAndRange(ctx context.Context, sheetId, readRange string, googleCreds GoogleCreds) ([][]interface{}, error) {
 	client, err := GetClient(context.Background(), googleCreds)
 	if err != nil {
 		return nil, err
@@ -168,7 +145,7 @@ func ReadDataFromGoogleSpreadSheetByIDAndRange(ctx context.Context, sheetId, rea
 	return resp.Values, nil
 }
 
-func ReadMetaDataFromGoogleSpreadSheetByID(sheetId string, googleCreds data.GoogleCreds) (*FileMetaData, error) {
+func ReadMetaDataFromGoogleSpreadSheetByID(sheetId string, googleCreds GoogleCreds) (*FileMetaData, error) {
 	client, err := GetClient(context.Background(), googleCreds)
 	if err != nil {
 		return nil, err
@@ -195,7 +172,7 @@ func ReadMetaDataFromGoogleSpreadSheetByID(sheetId string, googleCreds data.Goog
 }
 
 //ExportDataToGoogleSheetByIDAndRange takes the spreadsheet rows update the specified google sheet
-func ExportDataToGoogleSheetByIDAndRange(sheetId, writeRange string, rows [][]interface{}, googleCreds data.GoogleCreds) error {
+func ExportDataToGoogleSheetByIDAndRange(sheetId, writeRange string, rows [][]interface{}, googleCreds GoogleCreds) error {
 	client, err := GetClient(oauth2.NoContext, googleCreds)
 	if err != nil {
 		return err
@@ -220,7 +197,7 @@ func ExportDataToGoogleSheetByIDAndRange(sheetId, writeRange string, rows [][]in
 }
 
 //ExportDataToGoogleSheetByIDAndRange takes the spreadsheet rows update the specified google sheet and parse as user typed
-func ExportDataToGoogleSheetByIDAndRangeParsedAsUserTyped(sheetId, writeRange string, rows [][]interface{}, googleCreds data.GoogleCreds) error {
+func ExportDataToGoogleSheetByIDAndRangeParsedAsUserTyped(sheetId, writeRange string, rows [][]interface{}, googleCreds GoogleCreds) error {
 	client, err := GetClient(oauth2.NoContext, googleCreds)
 	if err != nil {
 		return err
@@ -245,7 +222,7 @@ func ExportDataToGoogleSheetByIDAndRangeParsedAsUserTyped(sheetId, writeRange st
 }
 
 //ClearDataOfGoogleSheetByIDAndRange clears column data of the specified range
-func ClearDataOfGoogleSheetByIDAndRange(sheetId string, clearRanges []string, googleCreds data.GoogleCreds) error {
+func ClearDataOfGoogleSheetByIDAndRange(sheetId string, clearRanges []string, googleCreds GoogleCreds) error {
 	client, err := GetClient(oauth2.NoContext, googleCreds)
 	if err != nil {
 		return err
