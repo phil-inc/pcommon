@@ -6,11 +6,7 @@ import (
 	"log"
 	"net/http"
 	"time"
-
-	"github.com/phil-inc/plog/logging"
 )
-
-var logger = logging.GetContextLogger("network")
 
 var httpClient = &http.Client{
 	Timeout: time.Second * 60,
@@ -40,7 +36,7 @@ func HTTPGet(url string, headers map[string]string) ([]byte, error) {
 
 	if res.StatusCode != 200 && res.StatusCode != 201 {
 		if res.StatusCode >= 500 {
-			logger.ErrorPrintf("[EXTERNAL][FATAL][GET] %d response code with external service at URL: %s. Status: %s", res.StatusCode, url, res.Status)
+			return nil, fmt.Errorf("[EXTERNAL][FATAL][GET] %d response code with external service at URL: %s. Status: %s", res.StatusCode, url, res.Status)
 		}
 		return nil, fmt.Errorf("Http response NOT_OK. Status: %s, Code:%d", res.Status, res.StatusCode)
 	}
