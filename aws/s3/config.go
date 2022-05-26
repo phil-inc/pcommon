@@ -6,7 +6,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-func GetS3Client(assessKey, secretKey, region string) *s3.Client {
+type S3Client struct {
+	Client *s3.Client
+}
+
+func GetS3Client(assessKey, secretKey, region string) *S3Client {
 
 	opts := s3.Options{
 		Region:      *aws.String(region),
@@ -14,7 +18,11 @@ func GetS3Client(assessKey, secretKey, region string) *s3.Client {
 	}
 
 	// Create an Amazon S3 service client
-	client := s3.New(opts)
+	s3Client := s3.New(opts)
+
+	client := &S3Client{
+		Client: s3Client,
+	}
 
 	return client
 }
