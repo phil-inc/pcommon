@@ -1,9 +1,5 @@
-## pcommon AWS S3 Implementation
+## AWS S3 Implementation
 It uses the AWS SDK V2 for Go to create the S3 connection. It implements the basic functionality of S3 such as upload, download, listing, etc.
-
-## Dependency
-
-go get github.com/phil-inc/pcommon
 
 ## Prerequisites
 * AWS Secret Key
