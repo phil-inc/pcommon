@@ -1,4 +1,4 @@
-package google_sheets
+package network
 
 import (
 	"bytes"
