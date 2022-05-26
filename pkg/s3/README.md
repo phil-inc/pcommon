@@ -24,7 +24,7 @@ Example Code:
 package main
 
 import (
-	"github.com/phil-inc/pcommon/aws/s3"
+	"github.com/phil-inc/pcommon/pkg/s3"
 )
 
 func main() {
