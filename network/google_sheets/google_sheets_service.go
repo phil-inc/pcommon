@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -20,8 +19,12 @@ import (
 // GetClient get the client to work with g suite
 func GetClient(ctx context.Context, googleCreds GoogleCreds) (*http.Client, error) {
 
-	cs := ToJSON(googleCreds)
-	googleCredsByte := []byte(cs)
+	googleCredsJSON, err := json.Marshal(googleCreds)
+	if err != nil {
+		return nil, err
+	}
+
+	googleCredsByte := []byte(googleCredsJSON)
 
 	conf, err := google.JWTConfigFromJSON(googleCredsByte, "https://www.googleapis.com/auth/drive")
 	if err != nil {
@@ -37,13 +40,13 @@ func GetClient(ctx context.Context, googleCreds GoogleCreds) (*http.Client, erro
 }
 
 //ExportCSVToSheet takes the csvData to create a google sheet in the drive
-func ExportCSVToSheet(ctx context.Context, namePrefix, csvData string, googleCreds GoogleCreds, driveFolderId string) (string, error) {
+func ExportCSVToSheet(ctx context.Context, namePrefix, csvData string, googleCreds GoogleCreds, driveFolderId string, sheetTitle string) (string, error) {
 	client, err := GetClient(ctx, googleCreds)
 	if err != nil {
 		return "", err
 	}
 
-	resp, err := CreateGoogleSheetInDrive(ctx, namePrefix, googleCreds, driveFolderId)
+	resp, err := CreateGoogleSheetInDrive(ctx, namePrefix, googleCreds, driveFolderId, sheetTitle)
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +84,7 @@ func ExportCSVToSheet(ctx context.Context, namePrefix, csvData string, googleCre
 	return resp.AlternateLink, nil
 }
 
-func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string, googleCreds GoogleCreds, driveFolderId string) (*drive.File, error) {
+func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string, googleCreds GoogleCreds, driveFolderId string, title string) (*drive.File, error) {
 	client, err := GetClient(ctx, googleCreds)
 	if err != nil {
 		return nil, err
@@ -93,7 +96,6 @@ func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string, googleCred
 	}
 
 	//Create a new sheet
-	title := fmt.Sprintf("%s-sheet-%s", namePrefix, USFormatDate(NowPST()))
 	fi := &drive.File{Title: title, Description: "description", MimeType: "application/vnd.google-apps.spreadsheet"}
 	p := &drive.ParentReference{Id: driveFolderId}
 	fi.Parents = []*drive.ParentReference{p}
@@ -103,27 +105,6 @@ func CreateGoogleSheetInDrive(ctx context.Context, namePrefix string, googleCred
 		return nil, err
 	}
 	return resp, nil
-}
-
-//ReadDataFromGoogleSpreadSheet gets data from Google spreadsheet
-func ReadDataFromGoogleSpreadSheet(sheetURL string) ([][]string, error) {
-	reqHeaders := map[string]string{}
-
-	body, err := HTTPGet(sheetURL, reqHeaders)
-	if err != nil {
-		return nil, err
-	}
-
-	response := new(spreadSheetData)
-	if err := json.Unmarshal(body, response); err != nil {
-		return nil, err
-	}
-
-	if len(response.ValueRanges) == 0 || len(response.ValueRanges[0].Values) == 0 || len(response.ValueRanges[0].Values[0]) == 0 {
-		return nil, errors.New("incorrect data")
-	}
-
-	return response.ValueRanges[0].Values, nil
 }
 
 func ReadDataFromGoogleSpreadSheetByIDAndRange(ctx context.Context, sheetId, readRange string, googleCreds GoogleCreds) ([][]interface{}, error) {
