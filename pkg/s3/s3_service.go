@@ -54,12 +54,12 @@ func ParseS3URI(s3URI string) (*Item, error) {
 	return &item, nil
 }
 
-func (ps3 *S3Client) CreateBucket(bucket string) (*string, error) {
+func (ps3 *S3Client) CreateBucket(ctx context.Context, bucket string) (*string, error) {
 	input := &s3.CreateBucketInput{
 		Bucket: aws.String(bucket),
 	}
 
-	_, err := ps3.Client.CreateBucket(context.Background(), input)
+	_, err := ps3.Client.CreateBucket(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -73,10 +73,10 @@ func (ps3 *S3Client) CreateBucket(bucket string) (*string, error) {
 	return &s3URI, nil
 }
 
-func (ps3 *S3Client) ListBuckets() (*BucketLists, error) {
+func (ps3 *S3Client) ListBuckets(ctx context.Context) (*BucketLists, error) {
 	input := &s3.ListBucketsInput{}
 
-	result, err := ps3.Client.ListBuckets(context.Background(), input)
+	result, err := ps3.Client.ListBuckets(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -85,13 +85,13 @@ func (ps3 *S3Client) ListBuckets() (*BucketLists, error) {
 	return &res, nil
 }
 
-func (ps3 *S3Client) ListFiles(bucket *string) (*FileLists, error) {
+func (ps3 *S3Client) ListFiles(ctx context.Context, bucket *string) (*FileLists, error) {
 
 	input := &s3.ListObjectsV2Input{
 		Bucket: bucket,
 	}
 
-	result, err := ps3.Client.ListObjectsV2(context.Background(), input)
+	result, err := ps3.Client.ListObjectsV2(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -99,16 +99,16 @@ func (ps3 *S3Client) ListFiles(bucket *string) (*FileLists, error) {
 	return &res, nil
 }
 
-func (ps3 *S3Client) getFile(bucket *string, name *string) (*s3.GetObjectOutput, error) {
+func (ps3 *S3Client) getFile(ctx context.Context, bucket *string, name *string) (*s3.GetObjectOutput, error) {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(*bucket),
 		Key:    aws.String(*name),
 	}
 
-	return ps3.Client.GetObject(context.Background(), input)
+	return ps3.Client.GetObject(ctx, input)
 }
 
-func (ps3 *S3Client) UploadFile(bucket string, filename string, file io.Reader) (*string, error) {
+func (ps3 *S3Client) UploadFile(ctx context.Context, bucket string, filename string, file io.Reader) (*string, error) {
 	input := &s3.PutObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(filename),
@@ -117,7 +117,7 @@ func (ps3 *S3Client) UploadFile(bucket string, filename string, file io.Reader) 
 
 	uploader := manager.NewUploader(ps3.Client)
 
-	_, err := uploader.Upload(context.Background(), input)
+	_, err := uploader.Upload(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (ps3 *S3Client) UploadFile(bucket string, filename string, file io.Reader) 
 	return &s3URI, nil
 }
 
-func (ps3 *S3Client) DownloadFile(bucket, filename string) ([]byte, error) {
+func (ps3 *S3Client) DownloadFile(ctx context.Context, bucket, filename string) ([]byte, error) {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(filename),
@@ -140,7 +140,7 @@ func (ps3 *S3Client) DownloadFile(bucket, filename string) ([]byte, error) {
 	downloader := manager.NewDownloader(ps3.Client)
 	buffer := &manager.WriteAtBuffer{}
 
-	_, err := downloader.Download(context.TODO(), buffer, input)
+	_, err := downloader.Download(ctx, buffer, input)
 	if err != nil {
 		return nil, err
 	}
@@ -148,8 +148,8 @@ func (ps3 *S3Client) DownloadFile(bucket, filename string) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (ps3 *S3Client) ReadFile(bucket *string, name *string) (string, error) {
-	file, err := ps3.getFile(bucket, name)
+func (ps3 *S3Client) ReadFile(ctx context.Context, bucket *string, name *string) (string, error) {
+	file, err := ps3.getFile(ctx, bucket, name)
 	if err != nil {
 		return "", err
 	}
@@ -161,8 +161,8 @@ func (ps3 *S3Client) ReadFile(bucket *string, name *string) (string, error) {
 	return content, nil
 }
 
-func (ps3 *S3Client) DownloadFileToPath(bucket, fileName, filePath string) error {
-	b, err := ps3.DownloadFile(bucket, fileName)
+func (ps3 *S3Client) DownloadFileToPath(ctx context.Context, bucket, fileName, filePath string) error {
+	b, err := ps3.DownloadFile(ctx, bucket, fileName)
 
 	if err != nil {
 		return err
@@ -172,7 +172,7 @@ func (ps3 *S3Client) DownloadFileToPath(bucket, fileName, filePath string) error
 	return err
 }
 
-func (ps3 *S3Client) UploadFileFromPath(bucket, fileName, filePath string) (*string, error) {
+func (ps3 *S3Client) UploadFileFromPath(ctx context.Context, bucket, fileName, filePath string) (*string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %q, %v", filePath, err)
@@ -182,7 +182,7 @@ func (ps3 *S3Client) UploadFileFromPath(bucket, fileName, filePath string) (*str
 
 	filename := path.Base(filePath)
 
-	upload, err := ps3.UploadFile(bucket, filename, f)
+	upload, err := ps3.UploadFile(ctx, bucket, filename, f)
 
 	if err != nil {
 		return nil, err
@@ -190,10 +190,10 @@ func (ps3 *S3Client) UploadFileFromPath(bucket, fileName, filePath string) (*str
 	return upload, nil
 }
 
-func (ps3 *S3Client) UploadImage(fileName string, fileByte []byte, bucket string) (*string, error) {
+func (ps3 *S3Client) UploadImage(ctx context.Context, fileName string, fileByte []byte, bucket string) (*string, error) {
 	reader := bytes.NewReader(fileByte)
 
-	upload, err := ps3.UploadFile(bucket, fileName, reader)
+	upload, err := ps3.UploadFile(ctx, bucket, fileName, reader)
 	if err != nil {
 		return nil, err
 	}
