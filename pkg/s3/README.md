@@ -25,7 +25,9 @@ import (
 
 func main() {
     client := s3.GetS3Client(assessKey, secretKey, region)
-    buckets, err := client.ListBuckets()
+   	ctx := context.Background()
+
+    buckets, err := client.ListBuckets(ctx)
     if err != nil {
         panic(err)
     }
