@@ -35,16 +35,16 @@ import (
 func main() {
 		var clearRanges []string
 		gc := google_sheets.GoogleCreds{
-      Type:            "type",
-      ProjectID:       "project_id",
-      PrivateKeyID:    "private_key_id",
-      PrivateKey:      "private_key",
-      ClientID:        "client_id",
-      ClientEmail:     "client_email",
-      AuthURI:         "auth_uri",
-      TokenURI:        "token_uri",
-      ProviderCertURI: "auth_provider_x509_cert_url",
-      ClientCertURI:   "client_x509_cert_url",
+            Type:            "type",
+            ProjectID:       "project_id",
+            PrivateKeyID:    "private_key_id",
+            PrivateKey:      "private_key",
+            ClientID:        "client_id",
+            ClientEmail:     "client_email",
+            AuthURI:         "auth_uri",
+            TokenURI:        "token_uri",
+            ProviderCertURI: "auth_provider_x509_cert_url",
+            ClientCertURI:   "client_x509_cert_url",
 		}
 		
 		clearRanges = append(clearRanges, "A1:A3", "B1:B5")
