@@ -209,6 +209,6 @@ func (ps3 *S3Client) CreateBucketIfNotExist(c context.Context, bucketName string
 				return
 			}
 		}
-		client.CreateBucket(c, bucketName)
+		ps3.CreateBucket(c, bucketName)
 	}
 }
