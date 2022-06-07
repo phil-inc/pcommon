@@ -201,14 +201,19 @@ func (ps3 *S3Client) UploadImage(ctx context.Context, fileName string, fileByte 
 	return upload, nil
 }
 
-func (ps3 *S3Client) CreateBucketIfNotExist(c context.Context, bucketName string) {
-	b, error := client.ListBuckets(c)
-	if error == nil {
-		for _, v := range b.Buckets {
-			if *v.Name == bucketName {
-				return
-			}
-		}
-		ps3.CreateBucket(c, bucketName)
+func (ps3 *S3Client) CreateBucketIfNotExist(c context.Context, bucketName string) (*string, error) {
+	b, err := ps3.ListBuckets(c)
+	if err != nil {
+		return nil, err
 	}
+	for _, v := range b.Buckets {
+		if *v.Name == bucketName {
+			return nil, nil
+		}
+	}
+	url, err := ps3.CreateBucket(c, bucketName)
+	if err != nil {
+		return nil, err
+	}
+	return url, nil
 }
