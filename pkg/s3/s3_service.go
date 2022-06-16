@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -216,6 +217,26 @@ func (ps3 *S3Client) CreateBucketIfNotExist(c context.Context, bucketName string
 		return nil, err
 	}
 	return url, nil
+}
+
+func (ps3 *S3Client) DoesBucketExist(c context.Context, bucketName string) bool {
+
+	if !IsValidBucketName(bucketName) {
+		return false
+	}
+
+	b, err := ps3.ListBuckets(c)
+	if err != nil {
+		return false
+	}
+
+	for _, v := range b.Buckets {
+		if *v.Name == bucketName {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Checks if bucket naming rule is followed. (Ref: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html)
