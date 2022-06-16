@@ -217,3 +217,16 @@ func (ps3 *S3Client) CreateBucketIfNotExist(c context.Context, bucketName string
 	}
 	return url, nil
 }
+
+// Checks if bucket naming rule is followed. (Ref: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html)
+func IsValidBucketName(bucketName string) bool {
+
+	if len(bucketName) < 3 || len(bucketName) > 63 {
+		return false
+	}
+
+	r := regexp.MustCompile(`^(([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])\.)*([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])$`)
+
+	return r.MatchString(bucketName)
+
+}
