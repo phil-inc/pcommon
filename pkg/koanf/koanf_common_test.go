@@ -42,12 +42,22 @@ func LoadConfig() error {
 }
 
 func TestGetStringOrDefaultInCommaSeparatorWithEnvValue(t *testing.T) {
+	expected := "SYS.DEV"
 	os.Setenv("ENROLL_PROFILE", "config")
-	os.Setenv("DEV", "XXXX")
+	os.Setenv("DEV", expected)
 	os.Setenv("DATA_DASHBOARD_ENDPOINT", "http://dataDashTest")
 	LoadConfig()
-	fmt.Println(Config.All())
-	fmt.Println(Config.Get("placeholder.value"), " ===>>> ")
-	fmt.Println(Config.Get("simple.value"), " ===>>> ")
-	fmt.Println(Config.Get("placeHolderFallBack.value"), " ===>>> ")
+
+	if Config.String("placeholder.value") != expected {
+		t.Errorf("Expected value did not match with key %s\n", expected)
+	}
+
+	if Config.String("simple.value") != "dev" {
+		t.Errorf("Expected value did not match with key %s\n", expected)
+	}
+
+	if Config.String("placeHolderFallBack.value") != expected {
+		t.Errorf("Expected value did not match with key %s\n", expected)
+
+	}
 }

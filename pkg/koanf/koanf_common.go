@@ -58,7 +58,6 @@ func LoadSystemEnvVariables(config *koanf.Koanf) error {
 
 		}
 	}
-
 	return nil
 }
 
