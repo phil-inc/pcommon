@@ -1,0 +1,12 @@
+{
+    "simple": {
+      "value": "dev"
+    },
+    "placeholder": {
+        "value": "${DEV}"
+    },
+    "placeHolderFallBack": {
+        "value": "${DEV|default}"
+    }
+  }
+  

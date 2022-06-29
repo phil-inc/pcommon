@@ -33,13 +33,29 @@ func LoadSystemEnvVariables(config *koanf.Koanf) error {
 		if strings.HasPrefix(strV, "${") && strings.HasSuffix(strV, "}") {
 			strV := strings.Trim(strV, "${")
 			strV = strings.Trim(strV, "}")
-			err := config.Load(env.Provider(strV, ".", func(s string) string {
-				return k
-			}), nil)
+			strVArr := strings.Split(strV, "|")
+			if len(strVArr) == 1 {
+				err := config.Load(env.Provider(strV, ".", func(s string) string {
+					return k
+				}), nil)
 
-			if err != nil {
-				return err
+				if err != nil {
+					return err
+				}
+			} else {
+				err := config.Load(env.Provider(strVArr[0], ".", func(s string) string {
+					if len(s) == 0 {
+						return strVArr[1]
+					} else {
+						return k
+					}
+				}), nil)
+
+				if err != nil {
+					return err
+				}
 			}
+
 		}
 	}
 
