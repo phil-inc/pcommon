@@ -1,12 +1,14 @@
 {
-    "simple": {
-      "value": "dev"
-    },
-    "placeholder": {
-        "value": "${DEV}"
-    },
-    "placeHolderFallBack": {
-        "value": "${DEV|default}"
-    }
+  "simple": {
+    "value": "dev"
+  },
+  "placeholder": {
+    "value": "${DEV}"
+  },
+  "placeHolderFallBack": {
+    "value": "${DEV|default}"
+  },
+  "cors": {
+    "allowedOrigin": "${DATA_DEV|https://default.data.phil.us},${LOGIN_MICROSOFT|https://login.default.microsoftonline.com}"
   }
-  
+}

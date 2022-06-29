@@ -24,10 +24,7 @@ func LoadConfig() error {
 	if err != nil {
 		return err
 	}
-	err = LoadSystemEnvVariables(Config)
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 
@@ -35,10 +32,9 @@ func TestGetStringOrDefaultInCommaSeparatorWithEnvValue(t *testing.T) {
 	expected := "SYS.DEV"
 	os.Setenv("TEST_PROFILE", "config")
 	os.Setenv("DEV", expected)
-	os.Setenv("DATA_DASHBOARD_ENDPOINT", "http://dataDashTest")
+	os.Setenv("DATA_DEV", "http://dataDashTest")
 	LoadConfig()
-
-	if Config.String("placeholder.value") != expected {
+	if GetFromEnvVariable("placeholder.value", Config) != expected {
 		t.Errorf("Expected value did not match with key %s\n", expected)
 	}
 
@@ -46,8 +42,8 @@ func TestGetStringOrDefaultInCommaSeparatorWithEnvValue(t *testing.T) {
 		t.Errorf("Expected value did not match with key %s\n", expected)
 	}
 
-	if Config.String("placeHolderFallBack.value") != expected {
+	if GetFromEnvVariable("placeHolderFallBack.value", Config) != expected {
 		t.Errorf("Expected value did not match with key %s\n", expected)
-
 	}
+	fmt.Println(GetFromEnvVariable("cors.allowedOrigin", Config))
 }
