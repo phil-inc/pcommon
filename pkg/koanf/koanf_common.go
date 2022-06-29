@@ -1,6 +1,7 @@
 package koanf
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -11,6 +12,25 @@ import (
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/providers/file"
 )
+
+var Config = koanf.New(".")
+
+func LoadConfig() error {
+	profile := flag.String("profile", "local", "-profile=local")
+	flag.Parse()
+	// override profile value from env variable if available
+	profileFromEnv := os.Getenv("TEST_PROFILE")
+	if profileFromEnv != "" {
+		profile = &profileFromEnv
+	}
+	fn := fmt.Sprintf("%s/%s.json", ".", *profile)
+	err := LoadConfigFromFile(fn, Config)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func LoadConfigFromFile(fn string, config *koanf.Koanf) error {
 	fp := file.Provider(fn)
@@ -47,7 +67,7 @@ func watchConfig(fp *file.File, config *koanf.Koanf) error {
 }
 
 // Use this method if your variable has to fetch data from system properties
-func GetFromEnvVariable(key string, config *koanf.Koanf) string {
+func GetConfigValue(key string, config *koanf.Koanf) interface{} {
 	return replaceSysVars(key, config)
 }
 
@@ -64,7 +84,7 @@ func replaceSysVarsHelper(value string) string {
 	v := ""
 	if val := helper(fmt.Sprintf("${%s}", parts[0])); val != "" {
 		v = val
-	} else {
+	} else if len(parts) > 1 {
 		v = parts[1]
 	}
 	return v
