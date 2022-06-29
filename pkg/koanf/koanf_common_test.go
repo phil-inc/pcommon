@@ -1,10 +1,8 @@
 package koanf
 
 import (
-	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"testing"
 
@@ -17,23 +15,15 @@ func LoadConfig() error {
 	profile := flag.String("profile", "local", "-profile=local")
 	flag.Parse()
 	// override profile value from env variable if available
-	profileFromEnv := os.Getenv("ENROLL_PROFILE")
-	if _, exist := os.LookupEnv("ENROLL_PROFILE"); !exist {
-		return errors.New("[phil-enroll] ENROLL_PROFILE Not found")
-	}
-
+	profileFromEnv := os.Getenv("TEST_PROFILE")
 	if profileFromEnv != "" {
 		profile = &profileFromEnv
 	}
-	log.Printf("[phil-enroll] Picking configuration: %s/%s.json", ".", *profile)
-
 	fn := fmt.Sprintf("%s/%s.json", ".", *profile)
-
 	err := LoadConfigFromFile(fn, Config)
 	if err != nil {
 		return err
 	}
-
 	err = LoadSystemEnvVariables(Config)
 	if err != nil {
 		return err
@@ -43,7 +33,7 @@ func LoadConfig() error {
 
 func TestGetStringOrDefaultInCommaSeparatorWithEnvValue(t *testing.T) {
 	expected := "SYS.DEV"
-	os.Setenv("ENROLL_PROFILE", "config")
+	os.Setenv("TEST_PROFILE", "config")
 	os.Setenv("DEV", expected)
 	os.Setenv("DATA_DASHBOARD_ENDPOINT", "http://dataDashTest")
 	LoadConfig()
