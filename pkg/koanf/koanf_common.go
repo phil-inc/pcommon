@@ -24,7 +24,7 @@ func LoadConfig() error {
 		profile = &profileFromEnv
 	}
 	fn := fmt.Sprintf("%s/%s.json", ".", *profile)
-	err := LoadConfigFromFile(fn, Config)
+	err := LoadConfigFromFile(fn)
 	if err != nil {
 		return err
 	}
@@ -32,14 +32,14 @@ func LoadConfig() error {
 	return nil
 }
 
-func LoadConfigFromFile(fn string, config *koanf.Koanf) error {
+func LoadConfigFromFile(fn string) error {
 	fp := file.Provider(fn)
-	err := config.Load(fp, json.Parser())
+	err := Config.Load(fp, json.Parser())
 	if err != nil {
 		return err
 	}
 
-	err = watchConfig(fp, config)
+	err = watchConfig(fp)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func LoadConfigFromFile(fn string, config *koanf.Koanf) error {
 	return nil
 }
 
-func watchConfig(fp *file.File, config *koanf.Koanf) error {
+func watchConfig(fp *file.File) error {
 	err := fp.Watch(func(event interface{}, err error) {
 		if err != nil {
 			log.Printf("watch error: %v", err)
@@ -55,8 +55,8 @@ func watchConfig(fp *file.File, config *koanf.Koanf) error {
 		}
 		// Throw away the old config and load a fresh copy.
 		log.Println("config changed. Reloading ...")
-		config = koanf.New(".")
-		config.Load(fp, json.Parser())
+		Config = koanf.New(".")
+		Config.Load(fp, json.Parser())
 	})
 
 	if err != nil {
@@ -67,12 +67,12 @@ func watchConfig(fp *file.File, config *koanf.Koanf) error {
 }
 
 // Use this method if your variable has to fetch data from system properties
-func GetConfigValue(key string, config *koanf.Koanf) interface{} {
-	return replaceSysVars(key, config)
+func GetConfigValue(key string) interface{} {
+	return replaceSysVars(key)
 }
 
-func replaceSysVars(key string, config *koanf.Koanf) string {
-	value := config.String(key)
+func replaceSysVars(key string) string {
+	value := Config.String(key)
 	re := regexp.MustCompile(`\${[^}]+}`)
 	return re.ReplaceAllStringFunc(value, replaceSysVarsHelper)
 }
