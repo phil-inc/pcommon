@@ -10,5 +10,14 @@
   },
   "cors": {
     "allowedOrigin": "${DATA_DEV|https://default.data.phil.us},${LOGIN_MICROSOFT|https://login.default.microsoftonline.com}"
+  },
+  "booleanDataType": {
+    "value": true
+  },
+  "numberDataType": {
+    "value": 1
+  },
+  "floatDataType": {
+    "value": 1.5
   }
 }

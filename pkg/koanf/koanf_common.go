@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/knadh/koanf"
@@ -69,6 +70,36 @@ func watchConfig(fp *file.File) error {
 // Use this method if your variable has to fetch data from system properties
 func GetConfigValue(key string) interface{} {
 	return replaceSysVars(key)
+}
+
+func GetBooleanConfigValue(key string, def bool) bool {
+	v, e := strconv.ParseBool(replaceSysVars(key))
+	if e == nil {
+		return v
+	} else {
+		fmt.Println("Error converting", e)
+		return def
+	}
+}
+
+func GetNumberConfigValue(key string, def int64) int64 {
+	v, e := strconv.ParseInt(replaceSysVars(key), 0, 0)
+	if e == nil {
+		return v
+	} else {
+		fmt.Println("Error converting", e)
+		return def
+	}
+}
+
+func GetFloatConfigValue(key string, def float64) float64 {
+	v, e := strconv.ParseFloat(replaceSysVars(key), 0)
+	if e == nil {
+		return v
+	} else {
+		fmt.Println("Error converting", e)
+		return def
+	}
 }
 
 func replaceSysVars(key string) string {

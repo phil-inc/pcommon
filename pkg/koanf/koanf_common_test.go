@@ -50,3 +50,19 @@ func TestGetStringOrDefaultInCommaSeparatorMissingEnvEnvValue(t *testing.T) {
 		t.Errorf("Expected value did not match with key %s\n", "")
 	}
 }
+
+func TestNonStringDataTypes(t *testing.T) {
+	os.Setenv("TEST_PROFILE", "config")
+	LoadConfig()
+	if !GetBooleanConfigValue("booleanDataType.value", false) {
+		t.Errorf("Expected value did not match with key %s\n", "true")
+	}
+
+	if GetNumberConfigValue("numberDataType.value", 0) != 1 {
+		t.Errorf("Expected value did not match with key %d\n", 1)
+	}
+
+	if GetFloatConfigValue("floatDataType.value", 0.0) != 1.5 {
+		t.Errorf("Expected value did not match with key %d\n", 1)
+	}
+}
