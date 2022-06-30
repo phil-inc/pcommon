@@ -76,6 +76,11 @@ func GetConfigValue(key string) interface{} {
 	return replaceSysVars(key)
 }
 
+// Use this method if your variable has to fetch data from system properties
+func GetStringConfigValue(key string) string {
+	return replaceSysVars(key)
+}
+
 func GetBooleanConfigValue(key string, def bool) bool {
 	v, e := strconv.ParseBool(replaceSysVars(key))
 	if e == nil {
