@@ -16,11 +16,11 @@ import (
 
 var Config = koanf.New(".")
 
-func LoadConfig() error {
+func LoadConfig(profileValue string) error {
 	profile := flag.String("profile", "local", "-profile=local")
 	flag.Parse()
 	// override profile value from env variable if available
-	profileFromEnv := os.Getenv("TEST_PROFILE")
+	profileFromEnv := os.Getenv(profileValue)
 	if profileFromEnv != "" {
 		profile = &profileFromEnv
 	}
