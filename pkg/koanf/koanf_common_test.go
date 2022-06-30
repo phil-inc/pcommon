@@ -1,7 +1,6 @@
 package koanf
 
 import (
-	"fmt"
 	"os"
 	"testing"
 )
@@ -33,20 +32,19 @@ func TestGetStringOrDefaultInCommaSeparatorMissingEnvEnvValue(t *testing.T) {
 	os.Setenv("TEST_PROFILE", "config")
 	os.Setenv("DATA_DEV", "http://dataDashTest")
 	LoadConfig("TEST_PROFILE")
-	if GetConfigValue("placeholder.value") != "" {
+	if GetStringConfigValue("placeholder.value") != "" {
 		t.Errorf("Expected value did not match with key %s\n", "")
 	}
 
-	if GetConfigValue("simple.value") != "dev" {
+	if GetStringConfigValue("simple.value") != "dev" {
 		t.Errorf("Expected value did not match with key %s\n", "")
 	}
 
-	if GetConfigValue("placeHolderFallBack.value") != "default" {
+	if GetStringConfigValue("placeHolderFallBack.value") != "default" {
 		t.Errorf("Expected value did not match with key %s\n", "")
 	}
-	fmt.Println(GetConfigValue("cors.allowedOrigin"))
 
-	if GetConfigValue("cors.allowedOrigin") != "http://dataDashTest,https://login.default.microsoftonline.com" {
+	if GetStringConfigValue("cors.allowedOrigin") != "http://dataDashTest,https://login.default.microsoftonline.com" {
 		t.Errorf("Expected value did not match with key %s\n", "")
 	}
 }
