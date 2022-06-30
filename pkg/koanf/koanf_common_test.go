@@ -11,7 +11,7 @@ func TestGetStringOrDefaultInCommaSeparatorWithEnvValue(t *testing.T) {
 	os.Setenv("TEST_PROFILE", "config")
 	os.Setenv("DEV", expected)
 	os.Setenv("DATA_DEV", "http://dataDashTest")
-	LoadConfig()
+	LoadConfig("TEST_PROFILE")
 	if GetConfigValue("placeholder.value") != expected {
 		t.Errorf("Expected value did not match with key %s\n", expected)
 	}
@@ -32,7 +32,7 @@ func TestGetStringOrDefaultInCommaSeparatorWithEnvValue(t *testing.T) {
 func TestGetStringOrDefaultInCommaSeparatorMissingEnvEnvValue(t *testing.T) {
 	os.Setenv("TEST_PROFILE", "config")
 	os.Setenv("DATA_DEV", "http://dataDashTest")
-	LoadConfig()
+	LoadConfig("TEST_PROFILE")
 	if GetConfigValue("placeholder.value") != "" {
 		t.Errorf("Expected value did not match with key %s\n", "")
 	}
@@ -53,7 +53,7 @@ func TestGetStringOrDefaultInCommaSeparatorMissingEnvEnvValue(t *testing.T) {
 
 func TestNonStringDataTypes(t *testing.T) {
 	os.Setenv("TEST_PROFILE", "config")
-	LoadConfig()
+	LoadConfig("TEST_PROFILE")
 	if !GetBooleanConfigValue("booleanDataType.value", false) {
 		t.Errorf("Expected value did not match with key %s\n", "true")
 	}
