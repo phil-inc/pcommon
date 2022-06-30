@@ -62,6 +62,14 @@ func TestNonStringDataTypes(t *testing.T) {
 		t.Errorf("Expected value did not match with key %d\n", 1)
 	}
 
+	if !CheckValueExist("floatDataType.value") {
+		t.Errorf("Expected value did not match with key %d\n", 1)
+	}
+
+	if CheckValueExist("floatDataType.someBS") {
+		t.Errorf("Expected value did not match with key %d\n", 1)
+	}
+
 	if GetFloatConfigValue("floatDataType.value", 0.0) != 1.5 {
 		t.Errorf("Expected value did not match with key %d\n", 1)
 	}
