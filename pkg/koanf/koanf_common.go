@@ -67,6 +67,10 @@ func watchConfig(fp *file.File) error {
 	return nil
 }
 
+func CheckValueExist(key string) bool {
+	return Config.Exists(key)
+}
+
 // Use this method if your variable has to fetch data from system properties
 func GetConfigValue(key string) interface{} {
 	return replaceSysVars(key)
