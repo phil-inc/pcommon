@@ -3,6 +3,8 @@ package koanf
 import (
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetStringOrDefaultInCommaSeparatorWithEnvValue(t *testing.T) {
@@ -71,4 +73,47 @@ func TestNonStringDataTypes(t *testing.T) {
 	if GetFloatConfigValue("floatDataType.value", 0.0) != 1.5 {
 		t.Errorf("Expected value did not match with key %d\n", 1)
 	}
+}
+
+func TestLoadConfigWithProvider(t *testing.T) {
+	os.Setenv("TEST_PROFILE", "config")
+	LoadConfig("TEST_PROFILE")
+
+	LoadConfigWithProvider(map[string]interface{}{
+		"parent1.child1.type": "confmap",
+		"type":                "confmap",
+	}, ".")
+
+	assert.Equal(t, "confmap", Config.String("type"), "types don't match")
+	assert.Equal(t, "confmap", Config.String("parent1.child1.type"), "types don't match")
+
+	mp := map[string]interface{}{
+		"str": map[string]string{
+			"k1": "value",
+		},
+		"strs": map[string][]string{
+			"k1": {"value"},
+		},
+		"iface": map[string]interface{}{
+			"k2": "value",
+		},
+		"ifaces": map[string][]interface{}{
+			"k2": {"value"},
+		},
+		"ifaces2": map[string]interface{}{
+			"k2": []interface{}{"value"},
+		},
+		"ifaces3": map[string]interface{}{
+			"k2": []string{"value"},
+		},
+	}
+
+	LoadConfigWithProvider(mp, ".")
+
+	assert.Equal(t, map[string]string{"k1": "value"}, Config.StringMap("str"), "types don't match")
+	assert.Equal(t, map[string]string{"k2": "value"}, Config.StringMap("iface"), "types don't match")
+	assert.Equal(t, map[string][]string{"k1": {"value"}}, Config.StringsMap("strs"), "types don't match")
+	assert.Equal(t, map[string][]string{"k2": {"value"}}, Config.StringsMap("ifaces"), "types don't match")
+	assert.Equal(t, map[string][]string{"k2": {"value"}}, Config.StringsMap("ifaces2"), "types don't match")
+	assert.Equal(t, map[string][]string{"k2": {"value"}}, Config.StringsMap("ifaces3"), "types don't match")
 }
