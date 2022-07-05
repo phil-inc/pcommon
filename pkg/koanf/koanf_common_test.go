@@ -78,6 +78,15 @@ func TestNonStringDataTypes(t *testing.T) {
 func TestLoadConfigWithProvider(t *testing.T) {
 	os.Setenv("TEST_PROFILE", "config")
 	LoadConfig("TEST_PROFILE")
+
+	LoadConfigWithProvider(map[string]interface{}{
+		"parent1.child1.type": "confmap",
+		"type":                "confmap",
+	}, ".")
+
+	assert.Equal(t, "confmap", Config.String("type"), "types don't match")
+	assert.Equal(t, "confmap", Config.String("parent1.child1.type"), "types don't match")
+
 	mp := map[string]interface{}{
 		"str": map[string]string{
 			"k1": "value",
