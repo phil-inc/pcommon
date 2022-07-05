@@ -11,6 +11,7 @@ import (
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/json"
+	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/file"
 )
 
@@ -147,4 +148,8 @@ func helper(strV string) string {
 	}
 
 	return strV
+}
+
+func LoadConfigWithProvider(configMap map[string]interface{}, delim string) {
+	Config.Load(confmap.Provider(configMap, delim), nil)
 }
