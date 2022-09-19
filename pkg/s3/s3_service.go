@@ -86,10 +86,11 @@ func (ps3 *S3Client) ListBuckets(ctx context.Context) (*BucketLists, error) {
 	return &res, nil
 }
 
-func (ps3 *S3Client) ListFiles(ctx context.Context, bucket *string) (*FileLists, error) {
+func (ps3 *S3Client) ListFiles(ctx context.Context, bucket, prefix *string) (*FileLists, error) {
 
 	input := &s3.ListObjectsV2Input{
 		Bucket: bucket,
+		Prefix: prefix,
 	}
 
 	result, err := ps3.Client.ListObjectsV2(ctx, input)
