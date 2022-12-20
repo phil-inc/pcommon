@@ -110,3 +110,18 @@ func (r Rows) NextRow() (bool, error) {
 
 	return false, nil
 }
+
+func ExecQuery(queryWithNamedParams string, params map[string]interface{}) (*pgx.Rows, error) {
+	paramArr := []interface{}{}
+	count := 1
+
+	for k, v := range params {
+		queryWithNamedParams = strings.Replace(queryWithNamedParams, ":"+k, fmt.Sprintf("$%d", count), 1)
+		paramArr = append(paramArr, v)
+		count++
+	}
+
+	reportDB := ReportDB()
+
+	return reportDB.Query(queryWithNamedParams, paramArr...)
+}
