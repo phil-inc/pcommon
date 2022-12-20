@@ -94,3 +94,19 @@ func ReportDB() *pgx.ConnPool {
 
 	return pool
 }
+
+// Check rows.Err() when reading a query as it is also possible an error may have occurred after receiving some rows
+// but before the query has completed.
+// Reference issue: https://github.com/jackc/pgx/issues/1214
+func (r Rows) NextRow() (bool, error) {
+	if r.Next() {
+		return true, nil
+	}
+
+	if err := r.Err(); err != nil {
+		logger.Errorf("Error executing query. Error message: %s", err)
+		return false, err
+	}
+
+	return false, nil
+}
