@@ -11,13 +11,16 @@ import (
 
 var pool *pgx.ConnPool
 var config *Config
-var Tx *pgx.Tx
 
 type Config struct {
 	URL         string
 	DBName      string
 	SSLMode     string
 	SSLRootCert string
+}
+
+type Tx struct {
+	pgx.Tx
 }
 
 func connectPostgres(connConfig *Config) (*pgx.ConnPool, error) {
