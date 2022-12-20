@@ -111,7 +111,7 @@ func (r Rows) NextRow() (bool, error) {
 	return false, nil
 }
 
-func ExecQuery(queryWithNamedParams string, params map[string]interface{}) (*pgx.Rows, error) {
+func ExecQuery(queryWithNamedParams string, params map[string]interface{}) (*Rows, error) {
 	paramArr := []interface{}{}
 	count := 1
 
@@ -122,6 +122,11 @@ func ExecQuery(queryWithNamedParams string, params map[string]interface{}) (*pgx
 	}
 
 	reportDB := ReportDB()
+	pr, err := reportDB.Query(queryWithNamedParams, paramArr...)
+	if err != nil {
+		return nil, err
+	}
 
-	return reportDB.Query(queryWithNamedParams, paramArr...)
+	return &Rows{Rows: *pr}, nil
+
 }
