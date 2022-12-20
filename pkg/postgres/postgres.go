@@ -23,6 +23,12 @@ type Tx struct {
 	pgx.Tx
 }
 
+type Rows struct {
+	pgx.Rows
+}
+
+var ErrNoRows = pgx.ErrNoRows
+
 func connectPostgres(connConfig *Config) (*pgx.ConnPool, error) {
 	connURL := fmt.Sprintf("%s/%s?sslmode=%s", connConfig.URL, connConfig.DBName, connConfig.SSLMode)
 
