@@ -253,3 +253,12 @@ func IsValidBucketName(bucketName string) bool {
 	return r.MatchString(bucketName)
 
 }
+
+func (ps3 *S3Client) DownloadFromS3(ctx context.Context, s3URI string) ([]byte, error) {
+	s3Item, err := ParseS3URI(s3URI)
+	if err != nil {
+		return nil, err
+	}
+
+	return ps3.DownloadFile(ctx, s3Item.Bucket, s3Item.Key)
+}
