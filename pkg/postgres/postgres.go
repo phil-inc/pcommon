@@ -83,7 +83,7 @@ func SetupPostgres(connConfig *Config) error {
 	return nil
 }
 
-func ReportDB() *pgx.ConnPool {
+func DB() *pgx.ConnPool {
 	if pool == nil {
 		err := SetupPostgres(config)
 		if err != nil {
@@ -121,8 +121,8 @@ func ExecQuery(queryWithNamedParams string, params map[string]interface{}) (*Row
 		count++
 	}
 
-	reportDB := ReportDB()
-	pr, err := reportDB.Query(queryWithNamedParams, paramArr...)
+	db := DB()
+	pr, err := db.Query(queryWithNamedParams, paramArr...)
 	if err != nil {
 		return nil, err
 	}
