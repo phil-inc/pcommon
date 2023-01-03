@@ -5,11 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
 	"regexp"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -171,7 +171,7 @@ func (ps3 *S3Client) DownloadFileToPath(ctx context.Context, bucket, fileName, f
 		return err
 	}
 
-	err = ioutil.WriteFile(filePath, b, 0644)
+	err = os.WriteFile(filePath, b, 0644)
 	return err
 }
 
@@ -260,5 +260,7 @@ func (ps3 *S3Client) DownloadFromS3(ctx context.Context, s3URI string) ([]byte, 
 		return nil, err
 	}
 
-	return ps3.DownloadFile(ctx, s3Item.Bucket, s3Item.Key)
+	key := strings.TrimPrefix(s3Item.Key, "/")
+
+	return ps3.DownloadFile(ctx, s3Item.Bucket, key)
 }
