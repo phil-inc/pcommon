@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -375,9 +376,6 @@ func SinceStartOfDayPST() (time.Time, time.Time) {
 	return st, et
 }
 
-// StartOfTheWeekMap day map for the week
-var StartOfTheWeekMap = map[time.Weekday]int{time.Monday: 0, time.Tuesday: 1, time.Wednesday: 2, time.Thursday: 3, time.Friday: 4, time.Saturday: 5, time.Sunday: 6}
-
 // GetStartOfTheWeek returns the time for start of the current week
 func GetStartOfTheWeek(t *time.Time) time.Time {
 	daysSinceMonday := StartOfTheWeekMap[t.Weekday()]
@@ -571,4 +569,45 @@ func WithInTimeSpan(start, end, check time.Time) bool {
 		return true
 	}
 	return false
+}
+
+// TimeZoneForState returns timezone for given state
+func TimeZoneForState(state string) string {
+	tz := stateToTimezoneMap[state]
+	if tz == "" {
+		return PstTimeZone
+	}
+	return tz
+}
+
+// StandardTimeZoneForState returns timezone for given state that maps to one of the 4 standard timezones we support
+func StandardTimeZoneForState(state string) string {
+	tz := stateToStandardTimeZoneMap[state]
+	if tz == "" {
+		return CstTimeZone
+	}
+	return tz
+}
+
+// HasMatchingTimeZone returns true if job's trigger timezone matches user timezone.
+func HasMatchingTimeZone(ctx context.Context, userState, jobTimeZone string) bool {
+	tz := StandardTimeZoneForState(userState)
+	if tz == "" {
+		tz = CstTimeZone
+	}
+
+	return tz == jobTimeZone
+}
+
+// LoadTimeZoneLocation loads Location based on given timezone
+func LoadTimeZoneLocation(tz string) (*time.Location, error) {
+	if timeZoneToLocationMap[tz] == nil {
+		loc, err := time.LoadLocation(tz)
+		if err != nil {
+			return nil, err
+		}
+		timeZoneToLocationMap[tz] = loc
+	}
+
+	return timeZoneToLocationMap[tz], nil
 }

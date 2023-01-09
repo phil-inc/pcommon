@@ -104,3 +104,8 @@ func UrlDecrypt(key, text string) (string, error) {
 	cfb.XORKeyStream(plaintext, cipherText)
 	return string(plaintext), nil
 }
+
+// B64Encode - encodes the given string with base 64
+func B64Encode(data string) string {
+	return base64.StdEncoding.EncodeToString([]byte(data))
+}
