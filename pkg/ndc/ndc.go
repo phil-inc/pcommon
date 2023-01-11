@@ -25,7 +25,7 @@ func isNDCFound(ndc string, ndcs []string) bool {
 	return false
 }
 
-//IsNDCMatch compares 2 NDCs and checks if it's same
+// IsNDCMatch compares 2 NDCs and checks if it's same
 func IsNDCMatch(ndc1 string, ndc2 string) bool {
 	ndc1 = SanitizeNDC(ndc1)
 	ndc2 = SanitizeNDC(ndc2)
@@ -49,7 +49,7 @@ func IsNDCMatch(ndc1 string, ndc2 string) bool {
 	return ndc1 == ndc2
 }
 
-//ValidateForStandard11DigitNDC checks if the NDC is valid 11-digit standard NDC
+// ValidateForStandard11DigitNDC checks if the NDC is valid 11-digit standard NDC
 func ValidateForStandard11DigitNDC(ndc string) bool {
 	if ndc == "" {
 		return false
@@ -60,8 +60,8 @@ func ValidateForStandard11DigitNDC(ndc string) bool {
 	return len(sndc) == 11
 }
 
-//ConvertNDCTo11Digits returns ndc in 11 digits
-//Could be written as 4-4-2 or 5-3-2 or 5-4-1 and should be converted to 11 digit NDC code is 5-4-2.
+// ConvertNDCTo11Digits returns ndc in 11 digits
+// Could be written as 4-4-2 or 5-3-2 or 5-4-1 and should be converted to 11 digit NDC code is 5-4-2.
 func ConvertNDCTo11Digits(ndc string) string {
 	parts := strings.Split(ndc, "-")
 	//NDC does not have dashes, we can't do conversion
@@ -97,8 +97,8 @@ func ConvertNDCTo11Digits(ndc string) string {
 	return strings.Replace(ndc, "-", "", -1)
 }
 
-//ConvertNDCTo10Digits returns ndc in 10 digits
-//11 digit NDC code is 5-4-2. Could be written as 4-4-2 or 5-3-2 or 5-4-1
+// ConvertNDCTo10Digits returns ndc in 10 digits
+// 11 digit NDC code is 5-4-2. Could be written as 4-4-2 or 5-3-2 or 5-4-1
 func ConvertNDCTo10Digits(ndc string) string {
 	parts := strings.Split(ndc, "-")
 	if len(parts) < 3 {
@@ -129,13 +129,13 @@ func ConvertNDCTo10Digits(ndc string) string {
 	return strings.Replace(ndc, "-", "", -1)
 }
 
-//SanitizeNDC cleans up the ndc code
+// SanitizeNDC cleans up the ndc code
 func SanitizeNDC(ndc string) string {
 	sanitized := strings.Replace(ndc, "-", "", -1)
 	return strings.TrimSpace(sanitized)
 }
 
-//AddDashesTo11DigitNDC adds the dash to format the NDC
+// AddDashesTo11DigitNDC adds the dash to format the NDC
 func AddDashesTo11DigitNDC(s string) string {
 	if len(s) < 11 {
 		return s
@@ -144,7 +144,7 @@ func AddDashesTo11DigitNDC(s string) string {
 	return fmt.Sprintf("%s-%s-%s", s[:5], s[5:9], s[9:])
 }
 
-//AddDashesTo10DigitNDC adds the dash to format the NDC
+// AddDashesTo10DigitNDC adds the dash to format the NDC
 func AddDashesTo10DigitNDC(s string) string {
 	if len(s) != 10 {
 		return s
@@ -185,4 +185,8 @@ func removeLeadingZero(part string) string {
 
 func addLeadingZero(part string) string {
 	return "0" + part
+}
+
+func IsGreaterThan(number, value float64) bool {
+	return number > value
 }
