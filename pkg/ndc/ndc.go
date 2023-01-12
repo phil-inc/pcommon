@@ -5,20 +5,20 @@ import (
 	"strings"
 )
 
-func IsNDCInList(ndc string, ndcs []string) bool {
-	ndc = SanitizeNDC(ndc)
+func IsInList(ndc string, ndcs []string) bool {
+	ndc = Sanitize(ndc)
 	if ndc == "" {
 		return false
 	}
-	return isNDCFound(ndc, ndcs)
+	return isFound(ndc, ndcs)
 }
 
-func isNDCFound(ndc string, ndcs []string) bool {
+func isFound(ndc string, ndcs []string) bool {
 	for _, n := range ndcs {
 		if n == "" {
 			continue
 		}
-		if IsNDCMatch(n, ndc) {
+		if IsMatch(n, ndc) {
 			return true
 		}
 	}
@@ -26,17 +26,17 @@ func isNDCFound(ndc string, ndcs []string) bool {
 }
 
 // IsNDCMatch compares 2 NDCs and checks if it's same
-func IsNDCMatch(ndc1 string, ndc2 string) bool {
-	ndc1 = SanitizeNDC(ndc1)
-	ndc2 = SanitizeNDC(ndc2)
+func IsMatch(ndc1 string, ndc2 string) bool {
+	ndc1 = Sanitize(ndc1)
+	ndc2 = Sanitize(ndc2)
 
 	if len(ndc2) == 11 {
-		ndc2 = AddDashesTo11DigitNDC(ndc2)
-		ndc2 = ConvertNDCTo10Digits(ndc2)
+		ndc2 = AddDashesTo11Digit(ndc2)
+		ndc2 = ConvertTo10Digits(ndc2)
 	}
 	if len(ndc1) == 11 {
-		ndc1 = AddDashesTo11DigitNDC(ndc1)
-		ndc1 = ConvertNDCTo10Digits(ndc1)
+		ndc1 = AddDashesTo11Digit(ndc1)
+		ndc1 = ConvertTo10Digits(ndc1)
 	}
 
 	if len(ndc2) == 9 {
@@ -50,26 +50,26 @@ func IsNDCMatch(ndc1 string, ndc2 string) bool {
 }
 
 // ValidateForStandard11DigitNDC checks if the NDC is valid 11-digit standard NDC
-func ValidateForStandard11DigitNDC(ndc string) bool {
+func ValidateForStandard11Digit(ndc string) bool {
 	if ndc == "" {
 		return false
 	}
 
-	sndc := SanitizeNDC(ndc)
+	sndc := Sanitize(ndc)
 
 	return len(sndc) == 11
 }
 
 // ConvertNDCTo11Digits returns ndc in 11 digits
 // Could be written as 4-4-2 or 5-3-2 or 5-4-1 and should be converted to 11 digit NDC code is 5-4-2.
-func ConvertNDCTo11Digits(ndc string) string {
+func ConvertTo11Digits(ndc string) string {
 	parts := strings.Split(ndc, "-")
 	//NDC does not have dashes, we can't do conversion
 	if len(parts) < 3 {
 		return ndc
 	}
 	//NDC already has 11 digits
-	if len(SanitizeNDC(ndc)) != 10 {
+	if len(Sanitize(ndc)) != 10 {
 		return ndc
 	}
 
@@ -99,10 +99,10 @@ func ConvertNDCTo11Digits(ndc string) string {
 
 // ConvertNDCTo10Digits returns ndc in 10 digits
 // 11 digit NDC code is 5-4-2. Could be written as 4-4-2 or 5-3-2 or 5-4-1
-func ConvertNDCTo10Digits(ndc string) string {
+func ConvertTo10Digits(ndc string) string {
 	parts := strings.Split(ndc, "-")
 	if len(parts) < 3 {
-		return SanitizeNDC(ndc)
+		return Sanitize(ndc)
 	}
 
 	//first part could be a candidate
@@ -130,13 +130,13 @@ func ConvertNDCTo10Digits(ndc string) string {
 }
 
 // SanitizeNDC cleans up the ndc code
-func SanitizeNDC(ndc string) string {
+func Sanitize(ndc string) string {
 	sanitized := strings.Replace(ndc, "-", "", -1)
 	return strings.TrimSpace(sanitized)
 }
 
 // AddDashesTo11DigitNDC adds the dash to format the NDC
-func AddDashesTo11DigitNDC(s string) string {
+func AddDashesTo11Digit(s string) string {
 	if len(s) < 11 {
 		return s
 	}
@@ -145,7 +145,7 @@ func AddDashesTo11DigitNDC(s string) string {
 }
 
 // AddDashesTo10DigitNDC adds the dash to format the NDC
-func AddDashesTo10DigitNDC(s string) string {
+func AddDashesTo10Digit(s string) string {
 	if len(s) != 10 {
 		return s
 	}
@@ -160,7 +160,7 @@ func AddDashesTo10DigitNDC(s string) string {
 }
 
 // NDCFromZohoSKU returns NDC from SKU with format X10-digit-NDCY
-func NDCFromZohoSKU(formattedSKu string) string {
+func FromZohoSKU(formattedSKu string) string {
 	sku := strings.ReplaceAll(formattedSKu, "-", "")
 	skuLength := len(sku)
 
@@ -172,7 +172,7 @@ func NDCFromZohoSKU(formattedSKu string) string {
 	// remove first and last charatcer from sku
 	sku = string(sku[1 : skuLength-1])
 
-	return AddDashesTo10DigitNDC(sku)
+	return AddDashesTo10Digit(sku)
 }
 
 func isLeadingZero(part string) bool {
@@ -185,8 +185,4 @@ func removeLeadingZero(part string) string {
 
 func addLeadingZero(part string) string {
 	return "0" + part
-}
-
-func IsGreaterThan(number, value float64) bool {
-	return number > value
 }
