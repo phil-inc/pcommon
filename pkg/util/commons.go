@@ -880,3 +880,7 @@ func ContentPartialFilePath(fileName string) string {
 func GetPhilLogoURL() string {
 	return fmt.Sprintf("%s/img/insert-card/p-new-log-black.svg", Config("dashboard.server.url"))
 }
+
+func IsGreaterThan(number, value float64) bool {
+	return number > value
+}
