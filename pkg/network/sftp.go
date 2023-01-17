@@ -27,6 +27,21 @@ func UploadFileToSFTP(host, user, password, port, srcFile, dstFile string) (int6
 	return UploadFileToSFTPUsingConfig(config, address, srcFile, dstFile)
 }
 
+func UploadFileToSFTPWithAddress(user, password, address, srcFile, dstFile string) (int64, error) {
+	// Initialize client configuration
+	config := &ssh.ClientConfig{
+		User: user,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
+		},
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return nil
+		},
+	}
+
+	return UploadFileToSFTPUsingConfig(config, address, srcFile, dstFile)
+}
+
 // Upload file to SFTP server
 func UploadFileToSFTPUsingConfig(config *ssh.ClientConfig, address, srcFile, dstFile string) (int64, error) {
 	// Connect to server
@@ -98,6 +113,21 @@ func ReadFileFromSFTP(host, user, password, port, srcFile, dstFile string) (int6
 	}
 
 	address := fmt.Sprintf("%s:%s", host, port)
+
+	return ReadFileFromSFTPUsingConfig(config, address, srcFile, dstFile)
+}
+
+func ReadFileFromSFTPWithAddress(user, password, address, srcFile, dstFile string) (int64, error) {
+	// Initialize client configuration
+	config := &ssh.ClientConfig{
+		User: user,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
+		},
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return nil
+		},
+	}
 
 	return ReadFileFromSFTPUsingConfig(config, address, srcFile, dstFile)
 }
