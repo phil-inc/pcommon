@@ -584,6 +584,8 @@ func correctFloatValue(val interface{}) float64 {
 		fval = f
 	case float64:
 		fval = price
+	case int:
+		fval = float64(price)
 	case float32:
 		fval = float64(price)
 	}
