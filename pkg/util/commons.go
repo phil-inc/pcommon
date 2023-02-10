@@ -338,6 +338,11 @@ func IsOrderExportEnabled() bool {
 	return (IsDev() && !IsLocal()) || IsProd()
 }
 
+// IsReadOnlyMode check if application is running in read only mode
+func IsReadOnlyMode() bool {
+	return Config("app.environment") == "read-only"
+}
+
 // IsClosed checks if passed in channel is closed
 func IsClosed(ch <-chan string) bool {
 	select {
