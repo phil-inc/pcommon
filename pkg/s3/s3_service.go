@@ -258,6 +258,7 @@ func IsValidBucketName(bucketName string) bool {
 
 }
 
+// DownloadFromS3 takes s3URI as parameter and returns []byte of file content
 func (ps3 *S3Client) DownloadFromS3(ctx context.Context, s3URI string) ([]byte, error) {
 	s3Item, err := ParseS3URI(s3URI)
 	if err != nil {
@@ -267,4 +268,16 @@ func (ps3 *S3Client) DownloadFromS3(ctx context.Context, s3URI string) ([]byte, 
 	key := strings.TrimPrefix(s3Item.Key, "/")
 
 	return ps3.DownloadFile(ctx, s3Item.Bucket, key)
+}
+
+// DownloadFromS3URIToPath takes s3URI as parameter and downloads the file to destination
+func (ps3 *S3Client) DownloadFromS3URIToPath(ctx context.Context, s3URI, dest string) error {
+	s3Item, err := ParseS3URI(s3URI)
+	if err != nil {
+		return err
+	}
+
+	key := strings.TrimPrefix(s3Item.Key, "/")
+
+	return ps3.DownloadFileToPath(ctx, s3Item.Bucket, key, dest)
 }
