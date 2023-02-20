@@ -60,8 +60,8 @@ func connectPostgres(connConfig *Config) (*pgx.ConnPool, error) {
 
 }
 
-// SetupPostgres - creates connection to Postgres database
-func SetupPostgres(connConfig *Config) error {
+// Setup - creates connection to Postgres database
+func Setup(connConfig *Config) error {
 	var err error
 	pool, err = connectPostgres(connConfig)
 
@@ -85,7 +85,7 @@ func SetupPostgres(connConfig *Config) error {
 
 func DB() *pgx.ConnPool {
 	if pool == nil {
-		err := SetupPostgres(config)
+		err := Setup(config)
 		if err != nil {
 			logger.Panicf("Error connecting to report db. Error message: %s", err)
 			return nil
