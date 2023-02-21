@@ -96,6 +96,9 @@ func UploadFileToSFTPUsingPrivateKey(user, privateKey, address, srcFile, dstFile
 		},
 	}
 
+	// oysterpoint mavens requires ssh-rsa
+	config.HostKeyAlgorithms = append(config.HostKeyAlgorithms, ssh.KeyAlgoRSA)
+
 	return UploadFileToSFTPUsingConfig(config, address, srcFile, dstFile)
 }
 
