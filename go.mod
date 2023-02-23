@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.12
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.26.10
 	github.com/gabriel-vasile/mimetype v1.4.1
+	github.com/golang-jwt/jwt/v4 v4.4.3
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jlaffaye/ftp v0.0.0-20220310202011-d2c44e311e78
 	github.com/knadh/koanf v1.4.2
