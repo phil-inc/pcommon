@@ -74,6 +74,8 @@ func UploadFileToSFTPUsingConfig(config *ssh.ClientConfig, address, srcFile, dst
 		return 0, err
 	}
 
+	defer df.Close()
+
 	// Copy source file to destination file
 	bytes, err := io.Copy(df, sf)
 	if err != nil {
