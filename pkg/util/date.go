@@ -617,8 +617,5 @@ func IsTimeBetweenWorkingHours(now *time.Time) bool {
 	startTime := DayStartTimePST().Add(8 * time.Hour)
 	endTime := DayStartTimePST().Add(17 * time.Hour)
 
-	if IsWorkingDay(*now) {
-		return now.After(startTime) && now.Before(endTime)
-	}
-	return false
+	return IsWorkingDay(*now) && now.After(startTime) && now.Before(endTime)
 }
