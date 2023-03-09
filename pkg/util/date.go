@@ -611,3 +611,14 @@ func LoadTimeZoneLocation(tz string) (*time.Location, error) {
 
 	return timeZoneToLocationMap[tz], nil
 }
+
+// IsTimeBetweenWorkingHours check it current time is in wokring hour (between 08 to 17)
+func IsTimeBetweenWorkingHours(now *time.Time) bool {
+	startTime := DayStartTimePST().Add(8 * time.Hour)
+	endTime := DayStartTimePST().Add(17 * time.Hour)
+
+	if IsWorkingDay(*now) {
+		return now.After(startTime) && now.Before(endTime)
+	}
+	return false
+}
