@@ -159,22 +159,23 @@ func AddDashesTo10Digit(s string) string {
 	return fmt.Sprintf("%s-0%s-%s", s[:5], s[5:8], s[8:])
 }
 
-// NDCFromZohoSKU returns NDC from SKU with format X10-digit-NDCY
+// FromZohoSKU returns NDC from SKU with format X10-digit-NDC
+// If SKU length is 11, it could be the actual SKU.
+// Else, if SKU format is not based on the agreed spec
 func FromZohoSKU(formattedSKu string) string {
 	sku := strings.ReplaceAll(formattedSKu, "-", "")
 	skuLength := len(sku)
 
-	// if SKU format is not based on the agreed spec
-	if skuLength != 12 {
-		return formattedSKu
+	switch skuLength {
+	case 11: //actual NDC without dashes
+		return fmt.Sprintf("%s-%s-%s", sku[:5], sku[5:9], sku[9:])
+	case 12:
+		sku = string(sku[1 : skuLength-1]) // remove first and last charatcer from sku
+		return AddDashesTo10Digit(sku)
 	}
 
-	// remove first and last charatcer from sku
-	sku = string(sku[1 : skuLength-1])
-
-	return AddDashesTo10Digit(sku)
+	return formattedSKu
 }
-
 func isLeadingZero(part string) bool {
 	return part[0] == '0'
 }
