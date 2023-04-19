@@ -573,6 +573,21 @@ func GetFullStateNameFromAbbreviation(state string) string {
 	return StateAbbreviation[state]
 }
 
+// Get state abbreviation from full name
+func GetStateAbbreviationFromName(state string) string {
+	if len(state) <= 2 {
+		return state
+	}
+
+	for k, v := range StateAbbreviation {
+		if strings.EqualFold(v, state) {
+			return k
+		}
+	}
+
+	return state
+}
+
 func correctFloatValue(val interface{}) float64 {
 	var fval float64
 
