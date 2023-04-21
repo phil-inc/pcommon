@@ -906,3 +906,13 @@ func GetPhilLogoURL() string {
 func IsGreaterThan(number, value float64) bool {
 	return number > value
 }
+
+func RemoveItemFromSlice(l []string, item string) []string {
+	updatedSlice := l
+	for i, other := range l {
+		if other == item {
+			updatedSlice = append(updatedSlice[:i], updatedSlice[i+1:]...)
+		}
+	}
+	return updatedSlice
+}
