@@ -906,3 +906,14 @@ func GetPhilLogoURL() string {
 func IsGreaterThan(number, value float64) bool {
 	return number > value
 }
+
+func RemoveEmptyStringFromSlice(ss []string) []string {
+	var rs []string
+	for _, s := range ss {
+		if strings.Trim(s, " ") != "" {
+			rs = append(rs, s)
+		}
+	}
+
+	return rs
+}
