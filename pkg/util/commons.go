@@ -907,6 +907,7 @@ func IsGreaterThan(number, value float64) bool {
 	return number > value
 }
 
+// Removes empty string from string slice. ["abc", " ", "", "bcd"] --> [abc bcd]
 func RemoveEmptyStringFromSlice(ss []string) []string {
 	var rs []string
 	for _, s := range ss {
