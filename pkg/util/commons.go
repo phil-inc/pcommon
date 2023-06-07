@@ -537,6 +537,16 @@ func CleanUpEmail(email string) string {
 	return te
 }
 
+// Check if email is valid or not
+func IsEmailValid(email string) bool {
+	// Regular expression pattern for email validation
+	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+
+	regex := regexp.MustCompile(pattern)
+
+	return regex.MatchString(email)
+}
+
 // RemoveSpaces removes all the spaces of a string
 func RemoveSpaces(value string) string {
 	return strings.Replace(value, " ", "", -1)
