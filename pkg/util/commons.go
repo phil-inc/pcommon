@@ -542,10 +542,8 @@ func IsEmailValid(email string) bool {
 	// Regular expression pattern for email validation
 	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
 
-	// Compile the regular expression pattern
 	regex := regexp.MustCompile(pattern)
 
-	// Match the email against the pattern
 	return regex.MatchString(email)
 }
 
