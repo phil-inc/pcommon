@@ -5,9 +5,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -168,15 +171,24 @@ func (ps3 *S3Client) ReadFile(ctx context.Context, bucket *string, name *string)
 	return content, nil
 }
 
-func (ps3 *S3Client) DownloadFileToPath(ctx context.Context, bucket, fileName, filePath string) error {
+func (ps3 *S3Client) DownloadFileToPath(ctx context.Context, bucket, fileName, filePath string) (string, error) {
 	b, err := ps3.DownloadFile(ctx, bucket, fileName)
-
 	if err != nil {
-		return err
+		return "", err
+	}
+
+	// For some reason, file without extension wasn't created.
+	// Therefore appropriate extension based on content is added if it doesn't exists.
+	if filepath.Ext(filePath) == "" {
+		ext, err := mime.ExtensionsByType(http.DetectContentType(b))
+		if err != nil {
+			return "", err
+		}
+		filePath = filePath + "." + ext[0]
 	}
 
 	err = os.WriteFile(filePath, b, 0644)
-	return err
+	return filePath, err
 }
 
 func (ps3 *S3Client) UploadFileFromPath(ctx context.Context, bucket, fileName, filePath string) (*string, error) {
@@ -271,10 +283,10 @@ func (ps3 *S3Client) DownloadFromS3(ctx context.Context, s3URI string) ([]byte, 
 }
 
 // DownloadFromS3URIToPath takes s3URI as parameter and downloads the file to destination
-func (ps3 *S3Client) DownloadFromS3URIToPath(ctx context.Context, s3URI, dest string) error {
+func (ps3 *S3Client) DownloadFromS3URIToPath(ctx context.Context, s3URI, dest string) (string, error) {
 	s3Item, err := ParseS3URI(s3URI)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	key := strings.TrimPrefix(s3Item.Key, "/")
