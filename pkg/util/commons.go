@@ -928,3 +928,10 @@ func TrimSlice(ss []string) []string {
 
 	return rs
 }
+
+// IsServiceUnavailable - identify a three-digit number starting with 4 or 5 in a given string to identify 4XX or 5XX errors
+func IsServiceUnavailable(s string) bool {
+	re := regexp.MustCompile(`\b([45]\d{2})\b`)
+	errorCodes := re.FindAllString(s, -1)
+	return len(errorCodes) > 0
+}
