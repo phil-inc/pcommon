@@ -281,3 +281,15 @@ func (ps3 *S3Client) DownloadFromS3URIToPath(ctx context.Context, s3URI, dest st
 
 	return ps3.DownloadFileToPath(ctx, s3Item.Bucket, key, dest)
 }
+
+// IsFile checks if the given key is s3 file
+func (ps3 *S3Client) IsFile(ctx context.Context, bucket, key *string) bool {
+	hoi := s3.HeadObjectInput{
+		Bucket: bucket,
+		Key:    key,
+	}
+
+	_, err := ps3.Client.HeadObject(ctx, &hoi)
+
+	return err == nil
+}
