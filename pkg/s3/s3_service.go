@@ -299,3 +299,15 @@ func (ps3 *S3Client) ListFilesWithContinuationtoken(ctx context.Context, bucket,
 	res := FileLists{result}
 	return &res, nil
 }
+
+// IsFile checks if the given key is s3 file
+func (ps3 *S3Client) IsFile(ctx context.Context, bucket, key *string) bool {
+	hoi := s3.HeadObjectInput{
+		Bucket: bucket,
+		Key:    key,
+	}
+
+	_, err := ps3.Client.HeadObject(ctx, &hoi)
+
+	return err == nil
+}
