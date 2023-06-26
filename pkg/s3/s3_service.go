@@ -282,6 +282,24 @@ func (ps3 *S3Client) DownloadFromS3URIToPath(ctx context.Context, s3URI, dest st
 	return ps3.DownloadFileToPath(ctx, s3Item.Bucket, key, dest)
 }
 
+// List the files in the bucket using continuation token
+func (ps3 *S3Client) ListFilesWithContinuationtoken(ctx context.Context, bucket, prefix, delimiter *string, continuationToken *string) (*FileLists, error) {
+
+	input := &s3.ListObjectsV2Input{
+		Bucket:            bucket,
+		Prefix:            prefix,
+		Delimiter:         delimiter,
+		ContinuationToken: continuationToken,
+	}
+
+	result, err := ps3.Client.ListObjectsV2(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	res := FileLists{result}
+	return &res, nil
+}
+
 // IsFile checks if the given key is s3 file
 func (ps3 *S3Client) IsFile(ctx context.Context, bucket, key *string) bool {
 	hoi := s3.HeadObjectInput{
