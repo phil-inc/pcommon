@@ -240,7 +240,7 @@ func (gc *GoogleCreds) GetModifiedDate(fileID string) (*time.Time, error) {
 		return nil, err
 	}
 
-	f, err := srv.Files.Get(fileID).Do()
+	f, err := srv.Files.Get(fileID).SupportsAllDrives(true).Do()
 	if err != nil {
 		return nil, err
 	}
