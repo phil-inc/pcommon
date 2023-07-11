@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -39,7 +40,7 @@ func (gc *GoogleCreds) GetClient(ctx context.Context) (*http.Client, error) {
 	return client, err
 }
 
-//ExportCSVToSheet takes the csvData to create a google sheet in the drive
+// ExportCSVToSheet takes the csvData to create a google sheet in the drive
 func (gc *GoogleCreds) ExportCSVToSheet(ctx context.Context, namePrefix, csvData string, driveFolderId string, sheetTitle string) (string, error) {
 	client, err := gc.GetClient(ctx)
 	if err != nil {
@@ -152,7 +153,7 @@ func (gc *GoogleCreds) ReadMetaDataFromGoogleSpreadSheetByID(sheetId string) (*F
 	return metaData, nil
 }
 
-//ExportDataToGoogleSheetByIDAndRange takes the spreadsheet rows update the specified google sheet
+// ExportDataToGoogleSheetByIDAndRange takes the spreadsheet rows update the specified google sheet
 func (gc *GoogleCreds) ExportDataToGoogleSheetByIDAndRange(sheetId, writeRange string, rows [][]interface{}) error {
 	client, err := gc.GetClient(oauth2.NoContext)
 	if err != nil {
@@ -177,7 +178,7 @@ func (gc *GoogleCreds) ExportDataToGoogleSheetByIDAndRange(sheetId, writeRange s
 	return nil
 }
 
-//ExportDataToGoogleSheetByIDAndRange takes the spreadsheet rows update the specified google sheet and parse as user typed
+// ExportDataToGoogleSheetByIDAndRange takes the spreadsheet rows update the specified google sheet and parse as user typed
 func (gc *GoogleCreds) ExportDataToGoogleSheetByIDAndRangeParsedAsUserTyped(sheetId, writeRange string, rows [][]interface{}) error {
 	client, err := gc.GetClient(oauth2.NoContext)
 	if err != nil {
@@ -202,7 +203,7 @@ func (gc *GoogleCreds) ExportDataToGoogleSheetByIDAndRangeParsedAsUserTyped(shee
 	return nil
 }
 
-//ClearDataOfGoogleSheetByIDAndRange clears column data of the specified range
+// ClearDataOfGoogleSheetByIDAndRange clears column data of the specified range
 func (gc *GoogleCreds) ClearDataOfGoogleSheetByIDAndRange(sheetId string, clearRanges []string) error {
 	client, err := gc.GetClient(oauth2.NoContext)
 	if err != nil {
@@ -224,4 +225,31 @@ func (gc *GoogleCreds) ClearDataOfGoogleSheetByIDAndRange(sheetId string, clearR
 	}
 
 	return nil
+}
+
+// GetModifiedDate gets the date when the google document was modified
+func (gc *GoogleCreds) GetModifiedDate(fileID string) (*time.Time, error) {
+	ctx := context.Background()
+	client, err := gc.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	srv, err := drive.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := srv.Files.Get(fileID).SupportsAllDrives(true).Do()
+	if err != nil {
+		return nil, err
+	}
+
+	date, err := time.Parse(time.RFC3339, f.ModifiedDate)
+	if err != nil {
+		return nil, err
+	}
+
+	return &date, nil
+
 }
