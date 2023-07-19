@@ -929,9 +929,8 @@ func TrimSlice(ss []string) []string {
 	return rs
 }
 
-
-// MergeWithoutDuplicatesStrings merges 'a' and 'b', excluding duplicates from 'b' already present in 'a'.
-func MergeWithoutDuplicatesStrings(a, b []string) []string {
+// MergeStringSlices merges 'a' and 'b', excluding duplicates from 'b' already present in 'a'.
+func MergeStringSlices(a, b []string) []string {
 	seen := make(map[string]bool)
 
 	for _, v := range a {
