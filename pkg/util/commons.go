@@ -946,3 +946,47 @@ func MergeStringSlices(a, b []string) []string {
 
 	return a
 }
+
+// matches following date format
+// YYYY-MM-DD
+// MM-DD-YYYY
+// YYYY/MM/DD
+// MM/DD/YYYY
+// YYYY.MM.DD
+// MM.DD.YYYY
+func IsDateString(inputDate string) bool {
+	dateFormats := []string{
+		`^\d{4}/\d{2}/\d{2}$`,
+		`^\d{2}/\d{2}/\d{4}$`,
+		`^\d{4}-\d{2}-\d{2}$`,
+		`^\d{2}-\d{2}-\d{4}$`,
+		`^\d{4}\.\d{2}\.\d{2}$`,
+		`^\d{2}\.\d{2}\.\d{4}$`,
+	}
+
+	for _, format := range dateFormats {
+		re := regexp.MustCompile(format)
+		if re.MatchString(inputDate) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Gives regex pattern
+// YYYY-MM-DD will give ^\d\d\d\d-\d\d-\d\d$
+func ConvertToRegexPattern(input string) string {
+	var builder strings.Builder
+
+	for _, ch := range input {
+		switch ch {
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			builder.WriteString(`\d`)
+		default:
+			builder.WriteString(regexp.QuoteMeta(string(ch)))
+		}
+	}
+
+	return fmt.Sprintf("^%s$", builder.String())
+}
