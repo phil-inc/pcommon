@@ -975,7 +975,7 @@ func IsDateString(inputDate string) bool {
 }
 
 // Gives regex pattern
-// YYYY-MM-DD will give ^\d\d\d\d/\d\d/\d\d$
+// YYYY-MM-DD will give ^\d\d\d\d-\d\d-\d\d$
 func ConvertToRegexPattern(input string) string {
 	var builder strings.Builder
 
