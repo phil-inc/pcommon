@@ -184,29 +184,60 @@ func HTTPDataUpload(url, usrName, password string, body bytes.Buffer, headers ma
 
 // HTTPJsonPost - sends JSON string data as post request
 func HTTPJsonPost(url, jsonBody string, headers map[string]string) ([]byte, error) {
-	resp, _, error := httpSend(url, "POST", jsonBody, headers)
-	return resp, error
+	return doHTTP(url, "POST", jsonBody, headers)
 }
 
 // HTTPJsonPut - sends JSON string data as put request
 func HTTPJsonPut(url, jsonBody string, headers map[string]string) ([]byte, error) {
-	resp, _, error := httpSend(url, "PUT", jsonBody, headers)
-	return resp, error
-
+	return doHTTP(url, "PUT", jsonBody, headers)
 }
 
 // HTTPJsonPost - sends JSON string data as post request
+// DEPRECATED - DO NOT USE
 func HTTPJsonPostWithErrorObject(url, jsonBody string, headers map[string]string) ([]byte, *ErrorObject) {
 	resp, errorCode, _ := httpSend(url, "POST", jsonBody, headers)
 	return resp, errorCode
 }
 
 // HTTPJsonPut - sends JSON string data as put request
+// DEPRECATED - DO NOT USE
 func HTTPJsonPutWithErrorObject(url, jsonBody string, headers map[string]string) ([]byte, *ErrorObject) {
 	resp, errorCode, _ := httpSend(url, "PUT", jsonBody, headers)
 	return resp, errorCode
 }
 
+func doHTTP(url, method, body string, headers map[string]string) ([]byte, error) {
+	reader := strings.NewReader(body)
+	req, _ := http.NewRequest(method, url, reader)
+	// add headers
+	for k, v := range headers {
+		req.Header.Add(k, v)
+	}
+
+	res, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+
+		errResp := fmt.Sprintf("Http response NOT_OK. Status: %s, Code:%d", res.Status, res.StatusCode)
+		if res.Body != nil {
+			resp, _ := ioutil.ReadAll(res.Body)
+			errResp = errResp + fmt.Sprintf(", Body: %s", resp)
+		}
+
+		return nil, fmt.Errorf(errResp)
+	}
+
+	return ioutil.ReadAll(res.Body)
+}
+
+// DEPRECATED - DO NOT USE AND WILL BE DELETED
 func httpSend(url, method, body string, headers map[string]string) ([]byte, *ErrorObject, error) {
 	reader := strings.NewReader(body)
 	req, _ := http.NewRequest(method, url, reader)
