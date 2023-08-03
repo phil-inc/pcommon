@@ -7,6 +7,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -312,4 +314,22 @@ func HTTPMultipartPost(url string, body, headers map[string]string) ([]byte, err
 	}
 
 	return ioutil.ReadAll(res.Body)
+}
+
+// GetStatusCodeFromError return status code for the http header
+func GetStatusCodeFromError(err error) int {
+	re := regexp.MustCompile(`Code:(\d+)`)
+	matches := re.FindStringSubmatch(err.Error())
+
+	if len(matches) < 2 {
+		return 0
+	}
+
+	codeStr := matches[1]
+	code, err := strconv.Atoi(codeStr)
+	if err != nil {
+		return 0
+	}
+
+	return code
 }
