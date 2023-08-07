@@ -14,6 +14,7 @@ import (
 type ErrorObject struct {
 	Status     string
 	StatusCode int
+	ErrorBody  string
 }
 
 var httpClient = &http.Client{
@@ -232,7 +233,7 @@ func httpSend(url, method, body string, headers map[string]string) ([]byte, *Err
 			errResp = errResp + fmt.Sprintf(", Body: %s", resp)
 		}
 
-		return nil, &ErrorObject{Status: res.Status, StatusCode: res.StatusCode}, fmt.Errorf(errResp)
+		return nil, &ErrorObject{Status: res.Status, StatusCode: res.StatusCode, ErrorBody: errResp}, fmt.Errorf(errResp)
 	}
 	resp, error := ioutil.ReadAll(res.Body)
 
