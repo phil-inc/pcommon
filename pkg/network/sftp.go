@@ -205,7 +205,8 @@ func ReadFileFromLegacySFTP(usr, password, address, srcFile, dstFile string) (in
 		},
 	}
 
-	config.Ciphers = append(config.Ciphers, "3des-cbc")
+	config.Ciphers = append(config.Ciphers, "aes256-cbc")
+	config.HostKeyAlgorithms = append(config.HostKeyAlgorithms, "ssh-dss")
 
 	return ReadFileFromSFTPUsingConfig(config, address, srcFile, dstFile)
 }
