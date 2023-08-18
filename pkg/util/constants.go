@@ -18,6 +18,7 @@ const EstTimeZone = "America/New_York"
 const CstTimeZone = "America/Chicago"
 const MstTimeZone = "America/Phoenix"
 const YYYYMMDDFormater = "20060102"
+const LongFormat = "2006-01-02 15:04:05.999999999 -0700 MST"
 
 const (
 	UtmSrc            = "utm_src"
