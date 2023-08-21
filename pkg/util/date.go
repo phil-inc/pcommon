@@ -611,3 +611,26 @@ func LoadTimeZoneLocation(tz string) (*time.Location, error) {
 
 	return timeZoneToLocationMap[tz], nil
 }
+
+// GetRegexFromDateString takes a date string as input and identifies its format using regular expressions.
+// It supports various common date formats such as YYYY/MM/DD, MM/DD/YYYY, YYYY-MM-DD, MM-DD-YYYY, YYYY.MM.DD, and MM.DD.YYYY.
+// If the input date string does not match any supported format, the function returns an empty string.
+func GetRegexFromDateString(ds string) string {
+	switch ConvertToRegexPattern(ds) {
+	case `^\d\d\d\d/\d\d/\d\d$`:
+		return "YYYY/MM/DD"
+	case `^\d\d/\d\d/\d\d\d\d$`:
+		return "MM/DD/YYYY"
+	case `^\d\d\d\d-\d\d-\d\d$`:
+		return "YYYY-MM-DD"
+	case `^\d\d-\d\d-\d\d\d\d$`:
+		return "MM-DD-YYYY"
+	case `^\d\d\d\d\.\d\d\.\d\d$`:
+		return "YYYY.MM.DD"
+	case `^\d\d\.\d\d\.\d\d\d\d$`:
+		return "MM.DD.YYYY"
+	}
+
+	// Date format not supported
+	return ""
+}
