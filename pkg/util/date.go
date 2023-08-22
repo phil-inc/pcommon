@@ -507,6 +507,32 @@ func IsAfter(date time.Time, hour, min int) bool {
 	return date.After(hourLocal)
 }
 
+// IsAfterDate returns true if date1 is after date2 otherwise returns false
+func IsAfterDate(date1, date2, format string) bool {
+	t1, err := time.Parse(format, date1)
+	if err != nil {
+		return false
+	}
+	t2, err := time.Parse(format, date2)
+	if err != nil {
+		return false
+	}
+	return t1.After(t2)
+}
+
+// IsAfterDate returns true if date1 is before date2 otherwise returns false
+func IsBeforeDate(date1, date2, format string) bool {
+	t1, err := time.Parse(format, date1)
+	if err != nil {
+		return false
+	}
+	t2, err := time.Parse(format, date2)
+	if err != nil {
+		return false
+	}
+	return t1.Before(t2)
+}
+
 func GetFormattedDateWithoutYearByState(state string, t time.Time) string {
 	timezone := TimeZoneForState(state)
 
