@@ -24,6 +24,7 @@ func DoesTwoSliceIntersect(s []string, e []string) bool {
 	return false
 }
 
+// GetDistinctFromStringSlice removes duplicate values from slice
 func GetDistinctFromStringSlice(strSlice []string) []string {
 	allKeys := make(map[string]bool)
 	list := []string{}
@@ -36,6 +37,7 @@ func GetDistinctFromStringSlice(strSlice []string) []string {
 	return list
 }
 
+// ConvertStructSliceToMap converts slice to map
 func ConvertStructSliceToMap(structArray interface{}) ([]map[string]interface{}, error) {
 	data, err := json.Marshal(structArray) // Convert to a json string
 	newMap := make([]map[string]interface{}, 0)
@@ -49,6 +51,7 @@ func ConvertStructSliceToMap(structArray interface{}) ([]map[string]interface{},
 	return newMap, nil
 }
 
+// IsEqualSliceString compares if two slice has same string velues
 func IsEqualSliceString(a []string, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -59,16 +62,4 @@ func IsEqualSliceString(a []string, b []string) bool {
 		}
 	}
 	return true
-}
-
-func RemoveDuplicateFromSlice(slice []string) []string {
-	inResult := make(map[string]bool)
-	var result []string
-	for _, str := range slice {
-		if _, ok := inResult[str]; !ok {
-			inResult[str] = true
-			result = append(result, str)
-		}
-	}
-	return result
 }
