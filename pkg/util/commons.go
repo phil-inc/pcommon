@@ -995,5 +995,5 @@ func ConvertToRegexPattern(input string) string {
 
 //Converts every first letter of the  word in the sentence to uppercase
 func TitleCase(input string) string {
-	return cases.Title(language.English).String(input)
+	return cases.Title(language.AmericanEnglish).String(input)
 }
