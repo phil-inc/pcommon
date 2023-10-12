@@ -20,6 +20,8 @@ import (
 	"github.com/narup/gconfig"
 	logger "github.com/phil-inc/plog-ng/pkg/core"
 	"github.com/pkg/errors"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 ///// Common functions ///////
@@ -989,4 +991,9 @@ func ConvertToRegexPattern(input string) string {
 	}
 
 	return fmt.Sprintf("^%s$", builder.String())
+}
+
+//Converts every first letter of the  word in the sentence to uppercase
+func TitleCase(input string) string {
+	return cases.Title(language.AmericanEnglish).String(input)
 }
