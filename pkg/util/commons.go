@@ -993,7 +993,17 @@ func ConvertToRegexPattern(input string) string {
 	return fmt.Sprintf("^%s$", builder.String())
 }
 
-//Converts every first letter of the  word in the sentence to uppercase
+// Converts every first letter of the  word in the sentence to uppercase
 func TitleCase(input string) string {
 	return cases.Title(language.AmericanEnglish).String(input)
+}
+
+// SnakeCase converts the given string to snake case
+func SnakeCase(str string) string {
+	matchFirstCap := regexp.MustCompile("(.)([A-Z][a-z]+)")
+	matchAllCap := regexp.MustCompile("([a-z0-9])([A-Z])")
+
+	snake := matchFirstCap.ReplaceAllString(str, "${1}_${2}")
+	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
+	return strings.ToLower(snake)
 }
