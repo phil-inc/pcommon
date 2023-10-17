@@ -27,6 +27,7 @@ func FlattenMapWithPrefix(input map[string]interface{}, result map[string]interf
 	}
 }
 
+// ConvertStructToMap converts struct to map with value as interface
 func ConvertStructToMap(structValue interface{}) (map[string]interface{}, error) {
 	data, err := json.Marshal(structValue) // Convert to a json string
 	newMap := make(map[string]interface{}, 0)
@@ -40,6 +41,7 @@ func ConvertStructToMap(structValue interface{}) (map[string]interface{}, error)
 	return newMap, nil
 }
 
+// ConvertStructToStringMap converts struct to map with value as string
 func ConvertStructToStringMap(structValue interface{}) (map[string]string, error) {
 	data, err := json.Marshal(structValue) // Convert to a json string
 	newMap := make(map[string]string, 0)
@@ -53,6 +55,7 @@ func ConvertStructToStringMap(structValue interface{}) (map[string]string, error
 	return newMap, nil
 }
 
+// GetStringValueFromMap fetches value as dtring for the given key
 func GetStringValueFromMap(ikey interface{}, source map[string]interface{}) string {
 	if ikey == nil {
 		return ""

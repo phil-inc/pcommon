@@ -998,6 +998,7 @@ func TitleCase(input string) string {
 	return cases.Title(language.AmericanEnglish).String(input)
 }
 
+// SnakeCase converts the given string to snake case
 func SnakeCase(str string) string {
 	matchFirstCap := regexp.MustCompile("(.)([A-Z][a-z]+)")
 	matchAllCap := regexp.MustCompile("([a-z0-9])([A-Z])")
