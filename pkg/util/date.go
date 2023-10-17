@@ -660,3 +660,32 @@ func GetRegexFromDateString(ds string) string {
 	// Date format not supported
 	return ""
 }
+
+func GetTimeInStringPST(t time.Time) (string, error) {
+	pt, err := ConvertToPST(t)
+	if err != nil {
+		return "", err
+	}
+
+	return pt.Format(localDateFormatWithTime), nil
+}
+
+func GetDateInStringPST(t time.Time) (string, error) {
+	pt, err := ConvertToPST(t)
+	if err != nil {
+		return "", err
+	}
+
+	return pt.Format(localDateFormat), nil
+}
+
+func ConvertToPST(t time.Time) (*time.Time, error) {
+	loc, err := time.LoadLocation(PstTimeZone)
+	if err != nil {
+		return nil, err
+	}
+
+	pt := t.In(loc)
+
+	return &pt, nil
+}
