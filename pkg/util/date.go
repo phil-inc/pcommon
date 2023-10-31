@@ -320,6 +320,7 @@ func GetNextWorkingDay(d time.Time) time.Time {
 
 }
 
+// IsNextDay checks if the given time corresponds to the next day in the PST timezone.
 func IsNextDay(d *time.Time) bool {
 	if d == nil {
 		return false
@@ -329,6 +330,7 @@ func IsNextDay(d *time.Time) bool {
 
 }
 
+// GetWorkingDaysBetween calculates the number of working days between two time points, 's' and 'd'.
 func GetWorkingDaysBetween(s, d time.Time) int {
 
 	days := 0
@@ -344,6 +346,8 @@ func GetWorkingDaysBetween(s, d time.Time) int {
 	return days
 }
 
+// IsWorkingDay checks if the given time falls on a working day.
+// It considers both US holidays and weekends as non-working days.
 func IsWorkingDay(d time.Time) bool {
 	c := cal.NewCalendar()
 	cal.AddUsHolidays(c)
@@ -366,6 +370,7 @@ func DaysBetween(t1, t2 time.Time) int {
 	return int(hours / 24)
 }
 
+// SinceStartOfDayPST returns the start and end times of the current day in the PST timezone.
 func SinceStartOfDayPST() (time.Time, time.Time) {
 
 	pst := NowPST()
@@ -387,6 +392,7 @@ func GetStartOfTheWeek(t *time.Time) time.Time {
 	return wst.UTC()
 }
 
+// SinceStartOfWeekPST calculates the start and end times of the current week in the PST timezone.
 func SinceStartOfWeekPST() (time.Time, time.Time) {
 	st, et := SinceStartOfDayPST()
 	daysSinceMonday := StartOfTheWeekMap[st.Weekday()]
@@ -399,6 +405,10 @@ func SinceStartOfWeekPST() (time.Time, time.Time) {
 	return wst.UTC(), wet.UTC()
 }
 
+// SinceStartOfMonthPST calculates the start and end times of the current month in the PST timezone.
+// The start time is set to the first day of the month at 00:00:00, and the end time is set to the
+// current day at 23:59:59 in PST timezone.
+// It returns both times in UTC timezone.
 func SinceStartOfMonthPST() (time.Time, time.Time) {
 	now := NowPST()
 
@@ -434,6 +444,10 @@ func ParseStringDOB(dob string) *time.Time {
 	return &utc
 }
 
+// AdjustForHolidays checks if the provided date is a US holiday or a Sunday. If it is, it increments
+// the date by one day until a non-holiday, non-Sunday date is found.
+// It uses a US holiday calendar to determine holidays.
+// The adjusted date is then returned.
 func AdjustForHolidays(date time.Time) time.Time {
 	c := cal.NewCalendar()
 	cal.AddUsHolidays(c)
@@ -451,6 +465,10 @@ func AdjustForHolidays(date time.Time) time.Time {
 	return startDate
 }
 
+// AdjustForWeekends checks if the provided date is a Saturday or Sunday. If it is, it decrements
+// the date by one day until a weekday (Monday to Friday) is found. If the date is before the start
+// of the current day, it increments it to the start of the next day.
+// The adjusted date is then returned.
 func AdjustForWeekends(date time.Time) time.Time {
 	if date.Weekday() == time.Sunday {
 		date = date.Add(time.Hour * 24 * time.Duration(-1))
@@ -465,6 +483,10 @@ func AdjustForWeekends(date time.Time) time.Time {
 	return date
 }
 
+// ForwardAdjustForWeekends checks if the provided date is a Saturday or Sunday. If it is, it increments
+// the date by one day until a weekday (Monday to Friday) is found. If the date is before the start
+// of the current day, it increments it to the start of the next day.
+// The adjusted date is then returned.
 func ForwardAdjustForWeekends(date time.Time) time.Time {
 	if date.Weekday() == time.Saturday {
 		date = date.Add(time.Hour * 24 * time.Duration(1))
@@ -497,11 +519,13 @@ func GetFormattedLocalTimeByState(state string) string {
 	return formattedDate
 }
 
+// IsBefore checks if the provided date is before a specified time of day.
 func IsBefore(date time.Time, hour, min int) bool {
 	hourLocal := time.Date(date.Year(), date.Month(), date.Day(), hour, min, 0, 0, date.Location())
 	return date.Before(hourLocal)
 }
 
+// IsAfter checks if the provided date is after a specified time of day.
 func IsAfter(date time.Time, hour, min int) bool {
 	hourLocal := time.Date(date.Year(), date.Month(), date.Day(), hour, min, 0, 0, date.Location())
 	return date.After(hourLocal)
@@ -533,6 +557,8 @@ func IsBeforeDate(date1, date2, format string) bool {
 	return t1.Before(t2)
 }
 
+// GetFormattedDateWithoutYearByState formats a given time according to the state's timezone.
+// It returns the date in the format "MM/DD" without the year component.
 func GetFormattedDateWithoutYearByState(state string, t time.Time) string {
 	timezone := TimeZoneForState(state)
 
@@ -543,10 +569,13 @@ func GetFormattedDateWithoutYearByState(state string, t time.Time) string {
 	return formattedDate
 }
 
+// YYYYMMDDFormat formats a given time in YYYYMMDD format.
 func YYYYMMDDFormat(t *time.Time) string {
 	return t.Format(YYYYMMDDFormater)
 }
 
+// GetFormattedDateFromString converts a date string in the format "MM/DD/YYYY" or "MM/DD/YY"
+// to a *time.Time. If the date string is empty or invalid, it returns nil.
 func GetFormattedDateFromString(dateStr string) *time.Time {
 	if dateStr == "" {
 		return nil
@@ -586,10 +615,13 @@ func GetFormattedDateFromString(dateStr string) *time.Time {
 	return &dob
 }
 
+// ToISODateTime converts a given time to its ISO 8601 representation.
 func ToISODateTime(t *time.Time) string {
 	return t.Format(time.RFC3339)
 }
 
+// WithInTimeSpan checks if a given time 'check' falls within the time span defined by 'start' and 'end'.
+// It returns true if 'check' is within the span, otherwise it returns false.
 func WithInTimeSpan(start, end, check time.Time) bool {
 	if (start.Before(check) || start.Equal(check)) && (end.After(check) || end.Equal(check)) {
 		return true
