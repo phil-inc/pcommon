@@ -20,6 +20,7 @@ import (
 	"github.com/narup/gconfig"
 	logger "github.com/phil-inc/plog-ng/pkg/core"
 	"github.com/pkg/errors"
+	"github.com/spf13/cast"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -1006,4 +1007,38 @@ func SnakeCase(str string) string {
 	snake := matchFirstCap.ReplaceAllString(str, "${1}_${2}")
 	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
 	return strings.ToLower(snake)
+}
+
+// CastValue cast the given value into the given type
+func CastValue(val interface{}, valueType string) interface{} {
+	switch valueType {
+	case "string":
+		res, _ := strconv.Unquote(cast.ToString(val))
+		return res
+	case "int":
+		return cast.ToInt(val)
+	case "bool":
+		return cast.ToBool(val)
+	case "float64":
+		fallthrough
+	case "float":
+		return cast.ToFloat64(val)
+	case "time":
+		return cast.ToTime(val)
+	case "StringArray":
+		var res []string
+		err := json.Unmarshal([]byte(val.(string)), &res)
+		if err != nil {
+			logger.Errorf("Error parsing value %+v. Error %s", val, err.Error())
+			return val
+		}
+		return res
+	case "IntArray":
+		return cast.ToIntSlice(val)
+	case "StringMap":
+		return cast.ToStringMap(val)
+	case "StringMapString":
+		return cast.ToStringMapString(val)
+	}
+	return val
 }
