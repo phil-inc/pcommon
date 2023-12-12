@@ -143,7 +143,14 @@ func (ps3 *S3Client) DownloadFile(ctx context.Context, bucket, filename string) 
 		Key:    aws.String(filename),
 	}
 
-	downloader := manager.NewDownloader(ps3.Client)
+	// The download manager gets the data in parts and writes them to a buffer until all of
+	// the data has been downloaded.
+	// download manager get the data in parts and download them concurrently
+	// each part is 1mb
+	downloader := manager.NewDownloader(ps3.Client, func(d *manager.Downloader) {
+		d.PartSize = 1024 * 1024
+	})
+
 	buffer := &manager.WriteAtBuffer{}
 
 	numBytes, err := downloader.Download(ctx, buffer, input)
