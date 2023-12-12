@@ -119,7 +119,11 @@ func (ps3 *S3Client) UploadFile(ctx context.Context, bucket string, filename str
 		Body:   file,
 	}
 
-	uploader := manager.NewUploader(ps3.Client)
+	// The upload manager breaks large data into parts and uploads the parts concurrent
+	// each part is 1mb
+	uploader := manager.NewUploader(ps3.Client, func(u *manager.Uploader) {
+		u.PartSize = 1024 * 1024
+	})
 
 	result, err := uploader.Upload(ctx, input)
 	if err != nil {
@@ -143,8 +147,7 @@ func (ps3 *S3Client) DownloadFile(ctx context.Context, bucket, filename string) 
 		Key:    aws.String(filename),
 	}
 
-	// The download manager gets the data in parts and writes them to a buffer until all of
-	// the data has been downloaded.
+	// The download manager gets the data in parts and writes them to a buffer until all of the data has been downloaded.
 	// download manager get the data in parts and download them concurrently
 	// each part is 1mb
 	downloader := manager.NewDownloader(ps3.Client, func(d *manager.Downloader) {
