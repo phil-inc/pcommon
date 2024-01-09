@@ -724,3 +724,14 @@ func ConvertToPST(t time.Time) (*time.Time, error) {
 
 	return &pt, nil
 }
+
+// GetLocDateFromState gets the time based on the given state's timezone
+func GetLocDateFromState(state string) (*time.Time, error) {
+	tzString := StandardTimeZoneForState(state)
+	tz, err := LoadTimeZoneLocation(tzString)
+	if err != nil {
+		return nil, err
+	}
+
+	return NowInTimeZoneLoc(tz), nil
+}
