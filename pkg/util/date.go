@@ -100,6 +100,11 @@ func BusinessHourStartTimeEST() time.Time {
 	return time.Date(est.Year(), est.Month(), est.Day(), 8, 0, 0, 0, LocationEST)
 }
 
+func BusinessHourEndTimeEST() time.Time {
+	est := time.Now().In(LocationEST)
+	return time.Date(est.Year(), est.Month(), est.Day(), 18, 0, 0, 0, LocationEST)
+}
+
 // DayEndTimePST day end time PST
 func DayEndTimePST() time.Time {
 	pst := time.Now().In(LocationPST)
