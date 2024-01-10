@@ -726,7 +726,9 @@ func ConvertToPST(t time.Time) (*time.Time, error) {
 }
 
 // GetLocDateFromState gets the time based on the given state's timezone
-func GetLocDateFromState(state string) (*time.Time, error) {
+// if state is not found, default is CST TimeZone
+// Parameter state should be in abbreviation form. Eg: CA
+func GetLocTimeFromState(state string) (*time.Time, error) {
 	tzString := StandardTimeZoneForState(state)
 	tz, err := LoadTimeZoneLocation(tzString)
 	if err != nil {
