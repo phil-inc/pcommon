@@ -1042,3 +1042,11 @@ func CastValue(val interface{}, valueType string) interface{} {
 	}
 	return val
 }
+
+// YesNo change and return boolean to yes or no
+func YesNo(b bool) string {
+	if b {
+		return "Yes"
+	}
+	return "No"
+}
