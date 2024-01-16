@@ -105,7 +105,7 @@ func BusinessHourEndTimeEST() time.Time {
 	return time.Date(est.Year(), est.Month(), est.Day(), 18, 0, 0, 0, LocationEST)
 }
 
-// BusinessHourStartTime day end time for given time and hour
+// BusinessHourStartTime day end time for given time, hour and location
 func BusinessHourStartTime(t *time.Time, hour *int) time.Time {
 	if hour != nil {
 		return time.Date(t.Year(), t.Month(), t.Day(), *hour, 0, 0, 0, t.Location())
@@ -113,7 +113,7 @@ func BusinessHourStartTime(t *time.Time, hour *int) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 8, 0, 0, 0, t.Location())
 }
 
-// / BusinessHourEndTime day end time for given time and hour
+// / BusinessHourEndTime day end time for given time, hour and location
 func BusinessHourEndTime(t *time.Time, hour *int) time.Time {
 	if hour != nil {
 		return time.Date(t.Year(), t.Month(), t.Day(), *hour, 0, 0, 0, t.Location())
