@@ -95,11 +95,13 @@ func DayStartTimeEST() time.Time {
 	return time.Date(est.Year(), est.Month(), est.Day(), 0, 0, 0, 0, LocationEST)
 }
 
+// BusinessHourStartTimeEST day start time for today.
 func BusinessHourStartTimeEST() time.Time {
 	est := time.Now().In(LocationEST)
 	return time.Date(est.Year(), est.Month(), est.Day(), 8, 0, 0, 0, LocationEST)
 }
 
+// BusinessHourEndTimeEST day end time for today
 func BusinessHourEndTimeEST() time.Time {
 	est := time.Now().In(LocationEST)
 	return time.Date(est.Year(), est.Month(), est.Day(), 18, 0, 0, 0, LocationEST)
