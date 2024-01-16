@@ -105,6 +105,22 @@ func BusinessHourEndTimeEST() time.Time {
 	return time.Date(est.Year(), est.Month(), est.Day(), 18, 0, 0, 0, LocationEST)
 }
 
+// BusinessHourStartTime day end time for given time and hour
+func BusinessHourStartTime(t *time.Time, hour *int) time.Time {
+	if hour != nil {
+		return time.Date(t.Year(), t.Month(), t.Day(), *hour, 0, 0, 0, t.Location())
+	}
+	return time.Date(t.Year(), t.Month(), t.Day(), 8, 0, 0, 0, t.Location())
+}
+
+// / BusinessHourEndTime day end time for given time and hour
+func BusinessHourEndTime(t *time.Time, hour *int) time.Time {
+	if hour != nil {
+		return time.Date(t.Year(), t.Month(), t.Day(), *hour, 0, 0, 0, t.Location())
+	}
+	return time.Date(t.Year(), t.Month(), t.Day(), 18, 0, 0, 0, t.Location())
+}
+
 // DayEndTimePST day end time PST
 func DayEndTimePST() time.Time {
 	pst := time.Now().In(LocationPST)
