@@ -95,9 +95,32 @@ func DayStartTimeEST() time.Time {
 	return time.Date(est.Year(), est.Month(), est.Day(), 0, 0, 0, 0, LocationEST)
 }
 
+// BusinessHourStartTimeEST day start time for today.
 func BusinessHourStartTimeEST() time.Time {
 	est := time.Now().In(LocationEST)
 	return time.Date(est.Year(), est.Month(), est.Day(), 8, 0, 0, 0, LocationEST)
+}
+
+// BusinessHourEndTimeEST day end time for today
+func BusinessHourEndTimeEST() time.Time {
+	est := time.Now().In(LocationEST)
+	return time.Date(est.Year(), est.Month(), est.Day(), 18, 0, 0, 0, LocationEST)
+}
+
+// BusinessHourStartTime day end time for given time, hour and location
+func BusinessHourStartTime(t *time.Time, hour *int) time.Time {
+	if hour != nil {
+		return time.Date(t.Year(), t.Month(), t.Day(), *hour, 0, 0, 0, t.Location())
+	}
+	return time.Date(t.Year(), t.Month(), t.Day(), 8, 0, 0, 0, t.Location())
+}
+
+// / BusinessHourEndTime day end time for given time, hour and location
+func BusinessHourEndTime(t *time.Time, hour *int) time.Time {
+	if hour != nil {
+		return time.Date(t.Year(), t.Month(), t.Day(), *hour, 0, 0, 0, t.Location())
+	}
+	return time.Date(t.Year(), t.Month(), t.Day(), 18, 0, 0, 0, t.Location())
 }
 
 // DayEndTimePST day end time PST
@@ -723,4 +746,17 @@ func ConvertToPST(t time.Time) (*time.Time, error) {
 	pt := t.In(loc)
 
 	return &pt, nil
+}
+
+// GetLocDateFromState gets the time based on the given state's timezone
+// if state is not found, default is CST TimeZone
+// Parameter state should be in abbreviation form. Eg: CA
+func GetLocTimeFromState(state string) (*time.Time, error) {
+	tzString := StandardTimeZoneForState(state)
+	tz, err := LoadTimeZoneLocation(tzString)
+	if err != nil {
+		return nil, err
+	}
+
+	return NowInTimeZoneLoc(tz), nil
 }
