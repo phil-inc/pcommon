@@ -1013,8 +1013,7 @@ func SnakeCase(str string) string {
 func CastValue(val interface{}, valueType string) interface{} {
 	switch valueType {
 	case "string":
-		res, _ := strconv.Unquote(cast.ToString(val))
-		return res
+		return cast.ToString(val)
 	case "int":
 		return cast.ToInt(val)
 	case "bool":
