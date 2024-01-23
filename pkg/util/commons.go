@@ -156,11 +156,13 @@ func IsPhoneNumber(str string) bool {
 
 // FormatPhone formats the given phone number
 func FormatPhone(phoneNumber string) string {
+	if phoneNumber == "" {
+		return ""
+	}
+	phoneNumber = SanitizePhoneNumber(phoneNumber)
 	if len(phoneNumber) < 10 {
 		return phoneNumber
 	}
-
-	phoneNumber = SanitizePhoneNumber(phoneNumber)
 	return fmt.Sprintf("(%s) %s-%s", phoneNumber[:3], phoneNumber[3:6], phoneNumber[6:10])
 }
 
