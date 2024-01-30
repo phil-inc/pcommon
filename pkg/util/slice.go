@@ -1,6 +1,9 @@
 package util
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"sort"
+)
 
 // StringSliceContains checks if string slice contains given string
 func StringSliceContains(s []string, e string) bool {
@@ -62,4 +65,25 @@ func IsEqualSliceString(a []string, b []string) bool {
 		}
 	}
 	return true
+}
+
+// Sort2DStringSliceByIndex sorts a 2D string slice based on the specified index.
+//
+// Parameters:
+//   - sl: The input 2D string slice to be sorted.
+//   - i: The index based on which the sorting is performed.
+//
+// Example:
+//
+//	sl := [][]string{{3, "John"}, {1, "Jack"}, {2, "Rose"}}
+//	i := 0
+//	Returns sl = [[1, "Jack"], [2, "Rose"], [3, "John"]]
+//
+// Returns the sorted 2D string slice.
+func Sort2DStringSliceByIndex(sl [][]string, i int) [][]string {
+	sort.SliceStable(sl, func(x, y int) bool {
+		return sl[x][i] < sl[y][i]
+	})
+
+	return sl
 }
