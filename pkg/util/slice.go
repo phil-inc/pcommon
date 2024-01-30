@@ -75,9 +75,9 @@ func IsEqualSliceString(a []string, b []string) bool {
 //
 // Example:
 //
-//	sl := [][]string{{3, "John"}, {1, "Jack"}, {2, "Rose"}}
+//	sl := [][]string{{"Doe", "John"}, {"Cena", "John"}, {"Martell", "John"}}
 //	i := 0
-//	Returns sl = [[1, "Jack"], [2, "Rose"], [3, "John"]]
+//	Returns sl = [["Cena", "John"], ["Doe", "John"], ["Martell", "John"]]
 //
 // Returns the sorted 2D string slice.
 func Sort2DStringSliceByIndex(sl [][]string, i int) [][]string {
