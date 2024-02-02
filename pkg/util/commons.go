@@ -186,11 +186,10 @@ func SanitizePhoneNumber(phoneNumber string) string {
 
 // FormatOrderNumber formats the order number to xxxx-xxxx-xxxx
 func FormatOrderNumber(orderNumber string) string {
+	orderNumber = SanitizeOrderNumber(orderNumber)
 	if len(orderNumber) < 12 {
 		return orderNumber
 	}
-
-	orderNumber = SanitizeOrderNumber(orderNumber)
 	return fmt.Sprintf("%s-%s-%s", orderNumber[:4], orderNumber[4:8], orderNumber[8:12])
 }
 
