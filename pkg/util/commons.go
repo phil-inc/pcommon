@@ -184,6 +184,21 @@ func SanitizePhoneNumber(phoneNumber string) string {
 	return phoneNumber
 }
 
+// FormatOrderNumber formats the order number to xxxx-xxxx-xxxx
+func FormatOrderNumber(orderNumber string) string {
+	orderNumber = SanitizeOrderNumber(orderNumber)
+	if len(orderNumber) < 12 {
+		return orderNumber
+	}
+	return fmt.Sprintf("%s-%s-%s", orderNumber[:4], orderNumber[4:8], orderNumber[8:12])
+}
+
+// SanitizeOrderNumber cleans up the order number
+func SanitizeOrderNumber(orderNumber string) string {
+	orderNumber = strings.Replace(orderNumber, "-", "", -1)
+	return orderNumber
+}
+
 // SanitizeZip cleans up the zipcode
 func SanitizeZip(zip string) string {
 	if len(zip) > 5 {
