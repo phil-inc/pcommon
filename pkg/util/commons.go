@@ -159,6 +159,11 @@ func FormatPhone(phoneNumber string) string {
 	if phoneNumber == "" {
 		return ""
 	}
+
+	if !IsPhoneNumber(phoneNumber) {
+		return phoneNumber
+	}
+
 	phoneNumber = SanitizePhoneNumber(phoneNumber)
 	if len(phoneNumber) < 10 {
 		return phoneNumber
