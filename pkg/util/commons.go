@@ -159,16 +159,20 @@ func FormatPhone(phoneNumber string) string {
 	if phoneNumber == "" {
 		return ""
 	}
-
-	if !IsPhoneNumber(phoneNumber) {
-		return phoneNumber
-	}
-
 	phoneNumber = SanitizePhoneNumber(phoneNumber)
 	if len(phoneNumber) < 10 {
 		return phoneNumber
 	}
 	return fmt.Sprintf("(%s) %s-%s", phoneNumber[:3], phoneNumber[3:6], phoneNumber[6:10])
+}
+
+// FormatValidPhone formats the given phone number only if it's a valid phone number
+func FormatValidPhone(phoneNumber string) string {
+	if IsPhoneNumber(phoneNumber) {
+		return FormatPhone(phoneNumber)
+	}
+
+	return phoneNumber
 }
 
 // SanitizePhoneNumber cleans up the phone number
