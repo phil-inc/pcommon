@@ -18,7 +18,6 @@ import (
 	"reflect"
 
 	"github.com/narup/gconfig"
-	"github.com/phil-inc/pcommon/pkg/ndc"
 	logger "github.com/phil-inc/plog-ng/pkg/core"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
@@ -1085,9 +1084,4 @@ func IsSameMedicationName(med1, med2, st1, st2 string) bool {
 	ls2 := TrimAndLower(st2)
 
 	return lm1 == lm2 && ls1 == ls2
-}
-
-// Return true or false according to where medication ndc detail matches
-func IsSameMedicationNDC(ndc1, ndc2 string) bool {
-	return ndc.IsMatch(ndc1, ndc2)
 }
