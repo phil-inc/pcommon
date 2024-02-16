@@ -671,7 +671,7 @@ func GetDiscreetRxName(rxName string) string {
 }
 
 func IsInternalEmail(email string) bool {
-	return strings.Contains(email, "phil.us") || strings.Contains(email, "usephil.com")
+	return strings.HasSuffix(email, "@phil.us") || strings.HasSuffix(email, "@usephil.com")
 }
 
 // StringData fetch string data from events data map
