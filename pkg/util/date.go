@@ -393,6 +393,19 @@ func DaysBetween(t1, t2 time.Time) int {
 	return int(hours / 24)
 }
 
+// MinutesBetween returns difference between two dates in minutes.
+func MinutesBetween(t1, t2 time.Time) int {
+	if t1.Before(t2) {
+		t1, t2 = t2, t1
+	}
+
+	t1 = time.Date(t1.Year(), t1.Month(), t1.Day(), 0, 0, 0, 0, LocationPST)
+	t2 = time.Date(t2.Year(), t2.Month(), t2.Day(), 0, 0, 0, 0, LocationPST)
+	mins := t1.Sub(t2).Minutes()
+
+	return int(mins)
+}
+
 // SinceStartOfDayPST returns the start and end times of the current day in the PST timezone.
 func SinceStartOfDayPST() (time.Time, time.Time) {
 
