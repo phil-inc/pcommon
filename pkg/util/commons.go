@@ -428,7 +428,7 @@ func FirstName(fullName string) string {
 	s := strings.Split(fullName, " ")
 	if len(s) > 0 {
 		fn := strings.ToLower(s[0])
-		return cases.Title(language.AmericanEnglish).String(fn)
+		return TitleCase(fn)
 	}
 	return fullName
 }
@@ -439,7 +439,7 @@ func MiddleName(fullName string) string {
 	if len(s) > 2 {
 		mn := strings.Join(s[1:len(s)-1], " ")
 		mn = strings.ToLower(mn)
-		return strings.Title(mn)
+		return TitleCase(mn)
 	}
 	return ""
 }
@@ -450,7 +450,7 @@ func LastName(fullName string) string {
 	// s := strings.Split(fullName, " ")
 	if len(s) > 0 {
 		ln := strings.ToLower(s[len(s)-1])
-		return strings.Title(ln)
+		return TitleCase(ln)
 	}
 	return fullName
 }
@@ -465,7 +465,7 @@ func PartialName(fullName string) string {
 		firstChar := string(ln[0])
 		pn := fmt.Sprintf("%s %s", fn, firstChar)
 
-		return strings.Title(pn)
+		return TitleCase(pn)
 	}
 	return fullName
 }
@@ -532,7 +532,7 @@ func TrimAndUpper(input string) string {
 // TrimAndTitle trim the input string and also convert to title case
 func TrimAndTitle(input string) string {
 	t := TrimAndLower(input)
-	return strings.Title(t)
+	return TitleCase(t)
 }
 
 // Trim trim the input string
