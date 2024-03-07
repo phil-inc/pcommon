@@ -428,7 +428,7 @@ func FirstName(fullName string) string {
 	s := strings.Split(fullName, " ")
 	if len(s) > 0 {
 		fn := strings.ToLower(s[0])
-		return strings.Title(fn)
+		return cases.Title(language.AmericanEnglish).String(fn)
 	}
 	return fullName
 }
@@ -1074,4 +1074,9 @@ func YesNo(b bool) string {
 		return "Yes"
 	}
 	return "No"
+}
+
+// GetMaskedName replace last name with *****
+func GetMaskedName(fn string) string {
+	return fmt.Sprintf("%s %s", FirstName(fn), "*****")
 }
