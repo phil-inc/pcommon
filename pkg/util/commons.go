@@ -1077,6 +1077,6 @@ func YesNo(b bool) string {
 }
 
 // GetMaskedName replace last name with *****
-func GetMaskedName(fn string) string {
-	return fmt.Sprintf("%s %s", FirstName(fn), "*****")
+func GetMaskedName(fullName string) string {
+	return fmt.Sprintf("%s %s", FirstName(fullName), "*****")
 }
