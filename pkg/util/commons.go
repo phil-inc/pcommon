@@ -190,6 +190,12 @@ func SanitizePhoneNumber(phoneNumber string) string {
 	if strings.HasPrefix(phoneNumber, "+1") {
 		phoneNumber = strings.Replace(phoneNumber, "+1", "", -1)
 	}
+
+	// Return empty if all strings are zero
+	if strings.Trim(phoneNumber, "0") == "" {
+		return ""
+	}
+
 	return phoneNumber
 }
 
