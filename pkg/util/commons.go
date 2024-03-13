@@ -1081,3 +1081,34 @@ func YesNo(b bool) string {
 	}
 	return "No"
 }
+
+// IsAlphanumeric checks if the string is alphanumeric
+func IsAlphanumeric(s string) bool {
+	return regexp.MustCompile(`^[a-zA-Z0-9]*$`).MatchString(s)
+}
+
+/*
+IsBinValid validates bin
+The criterias checked are:
+1. If the string contains all numeric values
+2. If it is 6 digit
+*/
+func IsBinValid(s string) bool {
+	// bin should only contain numeric values
+	if _, err := strconv.Atoi(s); err != nil {
+		return false
+	}
+
+	// bin should be 6 digits
+	return len(s) == 6
+}
+
+// IsInsuranceIDValid check if the insurance ID is valid
+func IsInsuranceIDValid(s string) bool {
+	return IsAlphanumeric(s)
+}
+
+// IsPCNValid check if the pcn is valid
+func IsPCNValid(s string) bool {
+	return IsAlphanumeric(s)
+}
