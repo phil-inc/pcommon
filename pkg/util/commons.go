@@ -1091,7 +1091,7 @@ func IsAlphanumeric(s string) bool {
 IsBinValid validates bin
 The criterias checked are:
 1. If the string contains all numeric values
-2. If it is 6 digit
+2. The length of the string is six.
 */
 func IsBinValid(s string) bool {
 	// bin should only contain numeric values
