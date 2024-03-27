@@ -160,10 +160,11 @@ func FormatUSPhoneNumber(phoneNumber string) string {
 		return ""
 	}
 	phoneNumber = SanitizePhoneNumber(phoneNumber)
-	if len(phoneNumber) < 10 {
-		return phoneNumber
+	// we will only format phone number with length of 10
+	if len(phoneNumber) == 10 {
+		return fmt.Sprintf("+1 (%s) %s-%s", phoneNumber[:3], phoneNumber[3:6], phoneNumber[6:10])
 	}
-	return fmt.Sprintf("+1 (%s) %s-%s", phoneNumber[:3], phoneNumber[3:6], phoneNumber[6:10])
+	return phoneNumber
 }
 
 // FormatPhone formats the given phone number
