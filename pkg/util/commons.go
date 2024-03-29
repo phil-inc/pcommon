@@ -154,8 +154,8 @@ func IsPhoneNumber(str string) bool {
 	return re.MatchString(str)
 }
 
-// FormatUSPhoneNumber formats the given phone number to: +1 (XXX) XXX-XXXX
-func FormatUSPhoneNumber(phoneNumber string) string {
+// FormatPhoneToZendeskFormat formats the given phone number to: +1XXXXXXXXXX
+func FormatPhoneToZendeskFormat(phoneNumber string) string {
 	return FormatNumber(phoneNumber, true)
 }
 
@@ -164,7 +164,7 @@ func FormatPhone(phoneNumber string) string {
 	return FormatNumber(phoneNumber, false)
 }
 
-func FormatNumber(phoneNumber string, usNumber bool) string {
+func FormatNumber(phoneNumber string, zendeskFormat bool) string {
 	if phoneNumber == "" {
 		return ""
 	}
@@ -172,8 +172,8 @@ func FormatNumber(phoneNumber string, usNumber bool) string {
 	if len(phoneNumber) < 10 {
 		return phoneNumber
 	}
-	if usNumber {
-		return fmt.Sprintf("+1 (%s) %s-%s", phoneNumber[:3], phoneNumber[3:6], phoneNumber[6:10])
+	if zendeskFormat {
+		return fmt.Sprintf("+1%s", phoneNumber[:10])
 	}
 	return fmt.Sprintf("(%s) %s-%s", phoneNumber[:3], phoneNumber[3:6], phoneNumber[6:10])
 }
