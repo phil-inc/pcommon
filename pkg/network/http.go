@@ -59,6 +59,7 @@ func parseGetResponse(res *http.Response, url string) ([]byte, error) {
 	return ioutil.ReadAll(res.Body)
 }
 
+// PostWithTimeout - POST request with headers and custom timeout value
 func PostWithTimeout(url string, body string, headers map[string]string, timeout int) ([]byte, error) {
 	return HTTPPostWithTimeOut(url, body, headers, timeout)
 }
