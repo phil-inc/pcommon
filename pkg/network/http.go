@@ -20,7 +20,7 @@ type ErrorObject struct {
 }
 
 var httpClient = &http.Client{
-	Timeout: time.Second * 60,
+	Timeout: time.Second * 90,
 }
 
 // Get - GET request with headers
