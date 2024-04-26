@@ -59,6 +59,53 @@ func parseGetResponse(res *http.Response, url string) ([]byte, error) {
 	return ioutil.ReadAll(res.Body)
 }
 
+// PostWithTimeout - POST request with headers and custom timeout value
+func PostWithTimeout(url string, body string, headers map[string]string, timeout int) ([]byte, error) {
+	return HTTPPostWithTimeOut(url, body, headers, timeout)
+}
+
+func HTTPPostWithTimeOut(url string, body string, headers map[string]string, timeout int) ([]byte, error) {
+	client := &http.Client{
+		Timeout: time.Duration(timeout) * time.Second,
+	}
+	reader := strings.NewReader(body)
+
+	req, err := http.NewRequest("POST", url, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	// add headers
+	for k, v := range headers {
+		req.Header.Add(k, v)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return parsePostResponse(res, url)
+}
+
+func parsePostResponse(res *http.Response, url string) ([]byte, error) {
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		errResp := fmt.Sprintf("Http response NOT_OK. Status: %s, Code:%d", res.Status, res.StatusCode)
+		if res.Body != nil {
+			resp, _ := ioutil.ReadAll(res.Body)
+			errResp = errResp + fmt.Sprintf(", Body: %s", resp)
+		}
+
+		return nil, fmt.Errorf(errResp)
+	}
+
+	return ioutil.ReadAll(res.Body)
+}
+
 func HTTPGetWithTimeOut(url string, headers map[string]string, timeout int) ([]byte, error) {
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
