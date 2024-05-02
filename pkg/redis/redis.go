@@ -1,4 +1,4 @@
-package predis
+package redis
 
 import (
 	"context"
@@ -11,6 +11,7 @@ type RedisClient struct {
 	*redis.Client
 }
 
+// SetupRedis sets up redis connection for the provided password
 func (rc *RedisClient) SetupRedis(addr string) {
 
 	// Connect to redis.
@@ -23,6 +24,7 @@ func (rc *RedisClient) SetupRedis(addr string) {
 	rc.Client = c
 }
 
+// AcquireLock acquires the lock if key does not exist or the key has expired
 func (rc *RedisClient) AcquireLock(ctx context.Context, key string, expiration time.Duration) (bool, error) {
 	// Try to set the key with expiration (NX means set only if key does not exist)
 	result, err := rc.SetNX(ctx, key, true, expiration).Result()
@@ -32,6 +34,7 @@ func (rc *RedisClient) AcquireLock(ctx context.Context, key string, expiration t
 	return result, nil
 }
 
+// ReleaseLock relaeases the lock if key exists, otherwise throws an error
 func (rc *RedisClient) ReleaseLock(ctx context.Context, key string) error {
 
 	// Delete the key to release the lock

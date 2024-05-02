@@ -21,6 +21,7 @@ func (tm *TTLMap) Init() {
 	tm.data = make(map[string]element, 0)
 }
 
+// AcquireLock acquires the lock if key does not exist or the key has expired
 func (tm *TTLMap) AcquireLock(ctx context.Context, key string, expiration time.Duration) (bool, error) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
@@ -42,6 +43,7 @@ func (tm *TTLMap) AcquireLock(ctx context.Context, key string, expiration time.D
 	return true, nil
 }
 
+// ReleaseLock relaeases the lock if key exists, otherwise throws an error
 func (tm *TTLMap) ReleaseLock(ctx context.Context, key string) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
