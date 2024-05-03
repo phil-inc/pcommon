@@ -31,7 +31,7 @@ func (tm *TTLMap) AcquireLock(ctx context.Context, key string, expiration time.D
 	if ok {
 		//  0 mean the key never expires or time is before expiration time, so cannot acquire lock
 		if item.Expiration.IsZero() || time.Now().Before(item.Expiration) {
-			return false, nil
+			return false, errors.New("lock cannot be acquired")
 		}
 	}
 
