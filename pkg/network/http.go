@@ -232,6 +232,11 @@ func HTTPDataUpload(url, usrName, password string, body bytes.Buffer, headers ma
 	return nil, fmt.Errorf("http response NOT_OK. Status: %s, Code:%d", resp.Status, resp.StatusCode)
 }
 
+// HTTPJsonGet - sends JSON string data as get request
+func HTTPJsonGet(url string, headers map[string]string) ([]byte, error) {
+	return doHTTP(url, "GET", "", headers)
+}
+
 // HTTPJsonPost - sends JSON string data as post request
 func HTTPJsonPost(url, jsonBody string, headers map[string]string) ([]byte, error) {
 	return doHTTP(url, "POST", jsonBody, headers)
