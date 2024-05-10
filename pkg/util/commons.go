@@ -309,6 +309,25 @@ func USDFormat(val interface{}) string {
 	return fmt.Sprintf("$%.2f", fval)
 }
 
+// TruncatedUSDFormat formats the given currency value in USD format.
+// If the value has a fractional part, it's displayed with 2 decimal places.
+// If it does not, it's displayed without decimal points.
+func TruncatedUSDFormat(val interface{}) string {
+	fval := correctFloatValue(val)
+	if fval == float64(int(fval)) {
+		if fval < 0 {
+			fval = math.Abs(fval)
+			return fmt.Sprintf("-$%.0f", fval)
+		}
+		return fmt.Sprintf("$%.0f", fval)
+	}
+	if fval < 0 {
+		fval = math.Abs(fval)
+		return fmt.Sprintf("-$%.2f", fval)
+	}
+	return fmt.Sprintf("$%.2f", fval)
+}
+
 // RemoveUSDFormat
 func RemoveUSDFormat(val interface{}) string {
 	fval := correctFloatValue(val)
