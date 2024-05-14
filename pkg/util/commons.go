@@ -309,6 +309,15 @@ func USDFormat(val interface{}) string {
 	return fmt.Sprintf("$%.2f", fval)
 }
 
+// TruncatedUSDFormat formats the given currency value to remove trailing ".00" if present
+func TruncatedUSDFormat(val interface{}) string {
+	formattedCurrency := USDFormat(val)
+	if strings.HasSuffix(formattedCurrency, ".00") {
+		return strings.Replace(formattedCurrency, ".00", "", -1)
+	}
+	return formattedCurrency
+}
+
 // RemoveUSDFormat
 func RemoveUSDFormat(val interface{}) string {
 	fval := correctFloatValue(val)
