@@ -52,6 +52,15 @@ func ValidateToken(token string, publicKey string) (jwt.MapClaims, error) {
 	return claims, nil
 }
 
+func GetHeaderValue(r *http.Request, key string) string {
+	headers := r.Header[key]
+	if len(headers) > 0 {
+		return headers[0]
+	}
+
+	return ""
+}
+
 func GetUserLocationDetailsUsingIP(ip, accessKey string) (*LocationData, error) {
 
 	serviceURL := fmt.Sprintf("http://api.ipstack.com/%s?access_key=%s", ip, accessKey)
