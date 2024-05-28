@@ -1,6 +1,6 @@
 module github.com/phil-inc/pcommon
 
-go 1.18
+go 1.21
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.16.4
@@ -16,7 +16,9 @@ require (
 	github.com/phil-inc/plog-ng v0.0.0-20220929021148-e9756eede797
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.4
+	github.com/redis/go-redis/v9 v9.5.1
 	github.com/rickar/cal v1.0.5
+	github.com/spf13/cast v1.6.0
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 )
 
@@ -33,10 +35,8 @@ require (
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/redis/go-redis/v9 v9.5.1 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
-	github.com/spf13/cast v1.6.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -63,7 +63,7 @@ require (
 	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
 	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/text v0.3.7
 	google.golang.org/api v0.80.0
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220524023933-508584e28198 // indirect
