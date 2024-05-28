@@ -52,6 +52,7 @@ func ValidateToken(token string, publicKey string) (jwt.MapClaims, error) {
 	return claims, nil
 }
 
+// GetHeaderValue retrieves the first value of the specified header key from *http.Request
 func GetHeaderValue(r *http.Request, key string) string {
 	headers := r.Header[key]
 	if len(headers) > 0 {
@@ -61,6 +62,7 @@ func GetHeaderValue(r *http.Request, key string) string {
 	return ""
 }
 
+// GetUserLocationDetailsUsingIP fetches location data for the provided IP address using ipstack
 func GetUserLocationDetailsUsingIP(ip, accessKey string) (*LocationData, error) {
 
 	serviceURL := fmt.Sprintf("http://api.ipstack.com/%s?access_key=%s", ip, accessKey)
@@ -79,6 +81,8 @@ func GetUserLocationDetailsUsingIP(ip, accessKey string) (*LocationData, error) 
 	return &locationDetails, nil
 }
 
+// GetRemoteIP retrieves the real IP address of the client from *http.Request
+// It checks the "X-Forwarded-For" and "X-Real-Ip" headers and returns the first public IP found
 func GetRemoteIP(r *http.Request) string {
 	for _, h := range []string{"X-Forwarded-For", "X-Real-Ip"} {
 		addresses := strings.Split(r.Header.Get(h), ",")
