@@ -65,12 +65,16 @@ func GetUserLocationDetailsUsingIP(ip, accessKey string) (*LocationData, error) 
 
 	serviceURL := fmt.Sprintf("http://api.ipstack.com/%s?access_key=%s", ip, accessKey)
 	res, err := network.GetWithTimeout(serviceURL, nil, 5)
-	locationDetails := LocationData{}
 	if err != nil {
 		return nil, err
 	}
 
-	json.Unmarshal(res, &locationDetails)
+	locationDetails := LocationData{}
+
+	err = json.Unmarshal(res, &locationDetails)
+	if err != nil {
+		return nil, err
+	}
 
 	return &locationDetails, nil
 }
