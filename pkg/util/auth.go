@@ -16,10 +16,10 @@ import (
 var ErrInvalidToken = errors.New("token is invalid")
 
 type LocationData struct {
-	CountryCode string  `json:"countryCode" bson:"countryCode,omitempty"`
-	CountryName string  `json:"countryName" bson:"countryName,omitempty"`
-	RegionCode  string  `json:"regionCode" bson:"regionCode,omitempty"`
-	RegionName  string  `json:"regionName" bson:"regionName,omitempty"`
+	CountryCode string  `json:"country_code" bson:"countryCode,omitempty"`
+	CountryName string  `json:"country_name" bson:"countryName,omitempty"`
+	RegionCode  string  `json:"region_code" bson:"regionCode,omitempty"`
+	RegionName  string  `json:"region_name" bson:"regionName,omitempty"`
 	City        string  `json:"city" bson:"city,omitempty"`
 	Zip         string  `json:"zip" bson:"zip,omitempty"`
 	Latitude    float64 `json:"latitude" bson:"latitude,omitempty"`
