@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+	"unicode"
 
 	"strings"
 
@@ -1137,4 +1138,25 @@ func IsPCNValid(s string) bool {
 // GetMaskedName replace last name with *****
 func GetMaskedName(fullName string) string {
 	return fmt.Sprintf("%s %s", FirstName(fullName), "*****")
+}
+
+// IsValidPassword validates password to have at least 8 character with number and alphabets
+func IsValidPassword(password string) bool {
+	var numberPresent bool
+	var letterPresent bool
+	const minPassLength = 8
+
+	for _, ch := range password {
+		switch {
+		case unicode.IsNumber(ch):
+			numberPresent = true
+		case unicode.IsLetter(ch):
+			letterPresent = true
+		}
+	}
+
+	if len(password) >= minPassLength && numberPresent && letterPresent {
+		return true
+	}
+	return false
 }
