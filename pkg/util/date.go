@@ -224,6 +224,11 @@ func USFormatDate(date *time.Time) string {
 	return fmt.Sprintf("%s/%d", date.Format("01/02"), date.Year())
 }
 
+// FormatDateWithDayMonth returns the day of the week followed by mm/dd
+func FormatDateAsDayMonth(date *time.Time) string {
+	return date.Format("Mon, 01/02")
+}
+
 // HumanDate returns human readable date
 func HumanDate(date *time.Time) string {
 	return date.Format("Mon, Jan 2, 2006")
