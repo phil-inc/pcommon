@@ -16,7 +16,6 @@ require (
 	github.com/phil-inc/plog-ng v0.0.0-20220929021148-e9756eede797
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.4
-	github.com/rickar/cal v1.0.5
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 )
 
@@ -34,6 +33,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/redis/go-redis/v9 v9.5.1 // indirect
+	github.com/rickar/cal/v2 v2.1.15 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
