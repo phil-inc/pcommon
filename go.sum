@@ -329,6 +329,10 @@ github.com/redis/go-redis/v9 v9.5.1/go.mod h1:hdY0cQFCN4fnSYT6TkisLufl/4W5UIXyv0
 github.com/rhnvrm/simples3 v0.6.1/go.mod h1:Y+3vYm2V7Y4VijFoJHHTrja6OgPrJ2cBti8dPGkC3sA=
 github.com/rickar/cal v1.0.5 h1:ccTH7okdpqbT+X7hlWgQM4Hv3rTvpV8Stu7enQx7ywY=
 github.com/rickar/cal v1.0.5/go.mod h1:3GBx8OBrvh4/y/JTxM0e1bUUIHMnqILl1rMANHWExxQ=
+github.com/rickar/cal v2.1.15+incompatible h1:hgukFoNs6L7poFKYC09+EysYffaN9IvlTMjHmTUtMdI=
+github.com/rickar/cal v2.1.15+incompatible/go.mod h1:3GBx8OBrvh4/y/JTxM0e1bUUIHMnqILl1rMANHWExxQ=
+github.com/rickar/cal/v2 v2.1.15 h1:bm6ll40ph9BLvY35Sy5KdT6GxN7UY56ZwCq/cJAxdew=
+github.com/rickar/cal/v2 v2.1.15/go.mod h1:/fdlMcx7GjPlIBibMzOM9gMvDBsrK+mOtRXdTzUqV/A=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/ryanuber/columnize v2.1.0+incompatible/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=

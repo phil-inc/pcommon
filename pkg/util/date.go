@@ -8,7 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rickar/cal"
+	"github.com/rickar/cal/v2"
+	"github.com/rickar/cal/v2/us"
 )
 
 // NowUTC returns current date time in UTC format
@@ -377,12 +378,27 @@ func GetWorkingDaysBetween(s, d time.Time) int {
 // IsWorkingDay checks if the given time falls on a working day.
 // It considers both US holidays and weekends as non-working days.
 func IsWorkingDay(d time.Time) bool {
-	c := cal.NewCalendar()
-	cal.AddUsHolidays(c)
-	if c.IsHoliday(d) || IsWeekend(&d) {
-		return false
-	}
-	return true
+	c := cal.NewBusinessCalendar()
+	c = AddUsHolidays(c)
+
+	return c.IsWorkday(d)
+}
+
+func AddUsHolidays(c *cal.BusinessCalendar) *cal.BusinessCalendar {
+	c.AddHoliday(
+		us.NewYear,
+		us.MlkDay,
+		us.PresidentsDay,
+		us.MemorialDay,
+		us.Juneteenth,
+		us.IndependenceDay,
+		us.LaborDay,
+		us.ColumbusDay,
+		us.VeteransDay,
+		us.ThanksgivingDay,
+		us.ChristmasDay,
+	)
+	return c
 }
 
 // DaysBetween returns difference between two dates in days.
@@ -490,16 +506,18 @@ func ParseStringDOB(dob string) *time.Time {
 // It uses a US holiday calendar to determine holidays.
 // The adjusted date is then returned.
 func AdjustForHolidays(date time.Time) time.Time {
-	c := cal.NewCalendar()
-	cal.AddUsHolidays(c)
+
+	c := cal.NewBusinessCalendar()
+	c = AddUsHolidays(c)
 
 	startDate := date
+	_, obs, _ := c.IsHoliday(date)
 
-	if c.IsHoliday(startDate) || startDate.Weekday() == time.Sunday {
+	if obs || startDate.Weekday() == time.Sunday {
 		startDate = startDate.Add(24 * time.Hour)
 	}
 	//check again just to make sure
-	if c.IsHoliday(startDate) || startDate.Weekday() == time.Sunday {
+	if obs || startDate.Weekday() == time.Sunday {
 		startDate = startDate.Add(24 * time.Hour)
 	}
 
