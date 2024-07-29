@@ -1160,3 +1160,10 @@ func IsValidPassword(password string) bool {
 	}
 	return false
 }
+
+// Cleans the input string by removing all characters except alphanumeric characters, spaces, slashes, underscores, dashes, caret, and dot.
+// As the user can input any search text which results in regex search, user can input any complex regex patern which will put load on server
+func CleanRegexForMongo(searchText string) string {
+	re := regexp.MustCompile(`[^a-zA-Z0-9\s/_\-\^\.]`)
+	return re.ReplaceAllString(searchText, "")
+}
