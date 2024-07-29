@@ -1161,10 +1161,11 @@ func IsValidPassword(password string) bool {
 	return false
 }
 
-// Cleans the input string by replacing all characters except alphanumeric characters, spaces, slashes, underscores, dashes, caret, and dot with space
+// Cleans the input string by replacing all characters except alphanumeric characters, spaces, slashes, underscores, dashes, caret, and dot with space, and remove multiple white spaces
 func CleanSearchText(searchText string) string {
 	re := regexp.MustCompile(`[^a-zA-Z0-9\s/_\-\^\.]`)
-	return re.ReplaceAllString(searchText, " ")
+	st := re.ReplaceAllString(searchText, " ")
+	return NormalizeSpace(st)
 }
 
 // Replace multiple spaces with a single space
