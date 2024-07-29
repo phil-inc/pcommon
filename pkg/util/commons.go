@@ -1161,8 +1161,7 @@ func IsValidPassword(password string) bool {
 	return false
 }
 
-// Cleans the input string by replacing all characters except alphanumeric characters, spaces, slashes, underscores, dashes, caret, and dot with space.
-// As the user can input any search text which results in regex search, user can input any complex regex patern which will put load on server
+// Cleans the input string by replacing all characters except alphanumeric characters, spaces, slashes, underscores, dashes, caret, and dot with space
 func CleanSearchText(searchText string) string {
 	re := regexp.MustCompile(`[^a-zA-Z0-9\s/_\-\^\.]`)
 	return re.ReplaceAllString(searchText, " ")
