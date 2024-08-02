@@ -83,6 +83,26 @@ func Setup(connConfig *Config) error {
 	return nil
 }
 
+// SetupPool - creates connection to Postgres database and returns the pool
+func SetupPool(connConfig *Config) (*pgx.ConnPool, error) {
+	pool, err := connectPostgres(connConfig)
+
+	// Fallback to ssl disable
+	if err != nil && connConfig.SSLMode != "disable" {
+		connConfig.SSLMode = "disable"
+		connConfig.SSLRootCert = ""
+		logger.Infof("Error connecting to postgres using sslmode=%s. Falling back to sslmode=disable", connConfig.SSLMode)
+		pool, err = connectPostgres(connConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	logger.Infof("Connected to postgres using sslmode=%s", connConfig.SSLMode)
+	return pool, nil
+}
+
+// DB - returns the global connection pool
 func DB() *pgx.ConnPool {
 	if pool == nil {
 		err := Setup(config)
@@ -111,7 +131,17 @@ func (r Rows) NextRow() (bool, error) {
 	return false, nil
 }
 
+// ExecQuery - executes query using the global pool
 func ExecQuery(queryWithNamedParams string, params map[string]interface{}) (*Rows, error) {
+	return execQueryWithPool(DB(), queryWithNamedParams, params)
+}
+
+// ExecQueryWithPool - executes query using a specific pool
+func ExecQueryWithPool(pool *pgx.ConnPool, queryWithNamedParams string, params map[string]interface{}) (*Rows, error) {
+	return execQueryWithPool(pool, queryWithNamedParams, params)
+}
+
+func execQueryWithPool(pool *pgx.ConnPool, queryWithNamedParams string, params map[string]interface{}) (*Rows, error) {
 	paramArr := []interface{}{}
 	count := 1
 
@@ -121,12 +151,10 @@ func ExecQuery(queryWithNamedParams string, params map[string]interface{}) (*Row
 		count++
 	}
 
-	db := DB()
-	pr, err := db.Query(queryWithNamedParams, paramArr...)
+	pr, err := pool.Query(queryWithNamedParams, paramArr...)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Rows{Rows: *pr}, nil
-
 }
