@@ -151,8 +151,7 @@ func execQueryWithPool(pool *pgx.ConnPool, queryWithNamedParams string, params m
 		count++
 	}
 
-	db := DB()
-	pr, err := db.Query(queryWithNamedParams, paramArr...)
+	pr, err := pool.Query(queryWithNamedParams, paramArr...)
 	if err != nil {
 		return nil, err
 	}
