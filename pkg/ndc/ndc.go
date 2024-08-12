@@ -187,3 +187,8 @@ func removeLeadingZero(part string) string {
 func addLeadingZero(part string) string {
 	return "0" + part
 }
+
+func SanitizeTo11Digit(s string) string {
+	sanitized := Sanitize(s)
+	return AddDashesTo11Digit(sanitized)
+}
