@@ -188,6 +188,7 @@ func addLeadingZero(part string) string {
 	return "0" + part
 }
 
+// SanitizeTo11Digit sanitize the ndc and add dash to format the NDC
 func SanitizeTo11Digit(s string) string {
 	sanitized := Sanitize(s)
 	return AddDashesTo11Digit(sanitized)
