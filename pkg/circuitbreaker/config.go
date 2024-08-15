@@ -27,7 +27,7 @@ func SetCircuitBreakerConfig(url string, config CircuitBreakerConfig) {
 func GetCircuitBreakerConfig(url string) CircuitBreakerConfig {
 	configMu.Lock()
 	defer configMu.Unlock()
-
+	//TODO: Normalize the url before fetching
 	config, exists := configurations[url]
 	if !exists {
 		// Default settings if not configured
