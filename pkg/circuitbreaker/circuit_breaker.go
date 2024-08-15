@@ -32,7 +32,7 @@ type CircuitBreaker struct {
 	failureThreshold         int
 	failureCount             int
 	successCount             int
-	mu                       sync.Mutex
+	mu                       sync.RWMutex
 	halfOpenSuccessThreshold int
 	openTimeout              time.Duration
 	lastFailureTime          time.Time
@@ -56,8 +56,8 @@ func NewCircuitBreaker(url string, failureThreshold int, halfOpenSuccessThreshol
 }
 
 func (cb *CircuitBreaker) loadState() error {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
+	cb.mu.RLock()
+	defer cb.mu.RUnlock()
 
 	state, err := redisClient.HGetAll(ctx, cb.url).Result()
 	if err != nil {
@@ -98,16 +98,14 @@ func (cb *CircuitBreaker) Call(f func() ([]byte, error)) ([]byte, error) {
 	switch cb.state {
 	case Open:
 		if time.Since(cb.lastFailureTime) > cb.openTimeout {
-			cb.state = HalfOpen
+			cb.transitionToHalfOpen()
 		} else {
 			cb.mu.Unlock()
 			return nil, fmt.Errorf("circuit breaker is open")
 		}
 	case HalfOpen:
 		if cb.successCount >= cb.halfOpenSuccessThreshold {
-			cb.state = Closed
-			cb.failureCount = 0
-			cb.successCount = 0
+			cb.transitionToClosed()
 		}
 	}
 
@@ -120,12 +118,7 @@ func (cb *CircuitBreaker) Call(f func() ([]byte, error)) ([]byte, error) {
 	defer cb.mu.Unlock()
 
 	if err != nil {
-		cb.failureCount++
-		if cb.failureCount >= cb.failureThreshold {
-			cb.state = Open
-			cb.lastFailureTime = time.Now()
-		}
-		cb.saveState() // Save state after failure
+		cb.recordFailure()
 		return nil, err
 	}
 
@@ -133,7 +126,40 @@ func (cb *CircuitBreaker) Call(f func() ([]byte, error)) ([]byte, error) {
 		cb.successCount++
 	}
 
-	cb.saveState() // Save state after success
-
+	cb.saveState() // save state after success
 	return resp, nil
+}
+
+func (cb *CircuitBreaker) transitionToHalfOpen() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.state = HalfOpen
+	cb.failureCount = 0
+	cb.successCount = 0
+	logger.Infof("Circuit breaker transitioned to HALF_OPEN for url %s", cb.url)
+}
+
+func (cb *CircuitBreaker) transitionToClosed() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.state = Closed
+	cb.failureCount = 0
+	cb.successCount = 0
+	logger.Infof("Circuit breaker transitioned to CLOSED for url %s", cb.url)
+}
+
+func (cb *CircuitBreaker) recordFailure() {
+	cb.failureCount++
+	if cb.failureCount >= cb.failureThreshold {
+		cb.transitionToOpen()
+	} else {
+		cb.saveState()
+	}
+}
+
+func (cb *CircuitBreaker) transitionToOpen() {
+	cb.state = Open
+	cb.lastFailureTime = time.Now()
+	logger.Errorf("Circuit breaker transitioned to OPEN for url %s", cb.url)
+	cb.saveState()
 }
