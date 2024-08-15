@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/phil-inc/pcommon/pkg/redis"
+	logger "github.com/phil-inc/plog-ng/pkg/core"
 )
 
 var redisClient *redis.RedisClient
@@ -47,25 +48,33 @@ func NewCircuitBreaker(url string, failureThreshold int, halfOpenSuccessThreshol
 	}
 
 	// Load initial state from Redis
-	cb.loadState()
+	if err := cb.loadState(); err != nil {
+		logger.Errorf("Error loading initial state: %v", err)
+	}
 
 	return cb
 }
 
-func (cb *CircuitBreaker) loadState() {
+func (cb *CircuitBreaker) loadState() error {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
 	state, err := redisClient.HGetAll(ctx, cb.url).Result()
-	if err == nil && len(state) > 0 {
+	if err != nil {
+		return fmt.Errorf("failed to load state from Redis: %v", err)
+	}
+
+	if len(state) > 0 {
 		cb.state = State(state["state"])
 		cb.failureCount, _ = strconv.Atoi(state["failureCount"])
 		cb.successCount, _ = strconv.Atoi(state["successCount"])
 		cb.lastFailureTime, _ = time.Parse(time.RFC3339, state["lastFailureTime"])
 	}
+
+	return nil
 }
 
-func (cb *CircuitBreaker) saveState() {
+func (cb *CircuitBreaker) saveState() error {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
@@ -76,7 +85,11 @@ func (cb *CircuitBreaker) saveState() {
 		"lastFailureTime": cb.lastFailureTime.Format(time.RFC3339),
 	}
 
-	redisClient.HMSet(ctx, cb.url, state)
+	if err := redisClient.HSet(ctx, cb.url, state).Err(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (cb *CircuitBreaker) Call(f func() ([]byte, error)) ([]byte, error) {
