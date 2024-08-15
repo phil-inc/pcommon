@@ -15,7 +15,7 @@ var redisClient *redis.RedisClient
 var ctx = context.Background() //TODO
 
 func SetupRedis(url string) {
-	redisClient := new(redis.RedisClient)
+	redisClient = new(redis.RedisClient)
 	redisClient.SetupRedis(url)
 }
 
@@ -75,11 +75,9 @@ func (cb *CircuitBreaker) loadState() error {
 }
 
 func (cb *CircuitBreaker) saveState() error {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
 
 	state := map[string]interface{}{
-		"state":           cb.state,
+		"state":           string(cb.state),
 		"failureCount":    cb.failureCount,
 		"successCount":    cb.successCount,
 		"lastFailureTime": cb.lastFailureTime.Format(time.RFC3339),
@@ -131,8 +129,6 @@ func (cb *CircuitBreaker) Call(f func() ([]byte, error)) ([]byte, error) {
 }
 
 func (cb *CircuitBreaker) transitionToHalfOpen() {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
 	cb.state = HalfOpen
 	cb.failureCount = 0
 	cb.successCount = 0
@@ -140,8 +136,6 @@ func (cb *CircuitBreaker) transitionToHalfOpen() {
 }
 
 func (cb *CircuitBreaker) transitionToClosed() {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
 	cb.state = Closed
 	cb.failureCount = 0
 	cb.successCount = 0
