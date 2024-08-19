@@ -796,3 +796,11 @@ func GetLocTimeFromState(state string) (*time.Time, error) {
 
 	return NowInTimeZoneLoc(tz), nil
 }
+
+// FormatSQLDate formats the date to the SQL date format that is RFC3339Nano
+func FormatSQLDate(t *time.Time) string {
+	if t != nil {
+		return t.Format(time.RFC3339Nano)
+	}
+	return ""
+}
