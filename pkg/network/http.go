@@ -129,9 +129,8 @@ func HTTPGetWithTimeOut(url string, headers map[string]string, timeout int) ([]b
 // HTTPGet - makes a get request to the given URL and HTTP headers.
 // it returns response data byte or error
 func HTTPGet(url string, headers map[string]string) ([]byte, error) {
-	config := circuitbreaker.GetCircuitBreakerConfig(url)
-	cb := circuitbreaker.NewCircuitBreaker(url, config.FailureThreshold, config.HalfOpenSuccess, config.OpenTimeout)
-	return cb.Call(func() ([]byte, error) {
+	cb := circuitbreaker.NewOutboundCircuitBreaker(url)
+	return cb.HandleRequest(func() ([]byte, error) {
 		req, err := getNewRequest("GET", url, headers)
 		if err != nil {
 			return nil, err
