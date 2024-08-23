@@ -16,7 +16,7 @@ func GetOutboundCircuitBreakerConfig(endpoint string) CircuitBreakerConfig {
 	configMu.Lock()
 	defer configMu.Unlock()
 
-	// TODO: Normalize the endpoint
+	endpoint = normalizeURL(endpoint)
 	config, exists := outboundConfigurations[endpoint]
 	if !exists {
 		return DefaultCircuitBreakerConfig()
