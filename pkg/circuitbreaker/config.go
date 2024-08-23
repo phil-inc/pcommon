@@ -9,6 +9,7 @@ type CircuitBreakerConfig struct {
 	FailureThreshold int
 	HalfOpenSuccess  int
 	OpenTimeout      time.Duration
+	MaxTimeout       time.Duration
 }
 
 var (

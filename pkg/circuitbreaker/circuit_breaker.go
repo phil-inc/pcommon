@@ -44,7 +44,9 @@ type BaseCircuitBreaker struct {
 	successCount             int
 	mu                       sync.RWMutex
 	halfOpenSuccessThreshold int
+	baseTimeout              time.Duration
 	openTimeout              time.Duration
+	maxTimeout               time.Duration
 	lastFailureTime          time.Time
 	endpoint                 string
 	isInbound                bool // Indicates whether this is an inbound or outbound circuit breaker
@@ -162,6 +164,7 @@ func (cb *BaseCircuitBreaker) transitionToHalfOpen() {
 	cb.state = HalfOpen
 	cb.failureCount = 0
 	cb.successCount = 0
+	cb.openTimeout = cb.baseTimeout // Reset to base timeout
 	logger.Infof("Circuit breaker transitioned to HALF_OPEN for endpoint %s", cb.endpoint)
 }
 
@@ -169,6 +172,10 @@ func (cb *BaseCircuitBreaker) transitionToClosed() {
 	cb.state = Closed
 	cb.failureCount = 0
 	cb.successCount = 0
+	cb.state = Closed
+	cb.failureCount = 0
+	cb.successCount = 0
+	cb.openTimeout = cb.baseTimeout // Reset to base timeout
 	logger.Infof("Circuit breaker transitioned to CLOSED for endpoint %s", cb.endpoint)
 }
 
@@ -184,6 +191,14 @@ func (cb *BaseCircuitBreaker) recordFailure() {
 func (cb *BaseCircuitBreaker) transitionToOpen() {
 	cb.state = Open
 	cb.lastFailureTime = time.Now()
+
+	// Exponential backoff: Increase openTimeout based on the failure count
+	cb.openTimeout = cb.baseTimeout * time.Duration(1<<cb.failureCount) // 1 << n is equivalent to 2^n
+
+	if cb.openTimeout > cb.maxTimeout {
+		cb.openTimeout = cb.maxTimeout
+	}
+
 	logger.Errorf("Circuit breaker transitioned to OPEN for endpoint %s", cb.endpoint)
 	cb.saveState()
 }
