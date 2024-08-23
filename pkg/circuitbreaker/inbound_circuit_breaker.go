@@ -8,6 +8,8 @@ func NewInboundCircuitBreaker(endpoint string) *BaseCircuitBreaker {
 func SetInboundCircuitBreakerConfig(endpoint string, config CircuitBreakerConfig) {
 	configMu.Lock()
 	defer configMu.Unlock()
+
+	endpoint = normalizeURL(endpoint)
 	inboundConfigurations[endpoint] = config
 }
 
