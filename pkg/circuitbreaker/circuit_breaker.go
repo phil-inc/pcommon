@@ -39,6 +39,8 @@ type CircuitBreaker interface {
 
 type BaseCircuitBreaker struct {
 	state                    State
+	manualOverride           ManualOverride
+	overrideConfigured       bool // Indicates if override is set
 	failureThreshold         int
 	failureCount             int
 	successCount             int
@@ -55,7 +57,7 @@ type BaseCircuitBreaker struct {
 func (cb *BaseCircuitBreaker) HandleRequest(f func() ([]byte, error)) ([]byte, error) {
 	cb.mu.Lock()
 
-	switch cb.state {
+	switch cb.checkManualOverride() {
 	case Open:
 		if time.Since(cb.lastFailureTime) > cb.openTimeout {
 			cb.transitionToHalfOpen()
