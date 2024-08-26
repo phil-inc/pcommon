@@ -128,7 +128,7 @@ func newCircuitBreaker(endpoint string, isInbound bool) *BaseCircuitBreaker {
 	}
 
 	cb := &BaseCircuitBreaker{
-		endpoint:                 endpoint,
+		endpoint:                 normalizeURL(endpoint),
 		failureThreshold:         config.FailureThreshold,
 		halfOpenSuccessThreshold: config.HalfOpenSuccess,
 		openTimeout:              config.OpenTimeout,
