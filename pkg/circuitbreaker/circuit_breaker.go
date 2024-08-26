@@ -162,11 +162,11 @@ func (cb *BaseCircuitBreaker) loadState() error {
 
 	if len(state) > 0 {
 		cb.state = State(state["state"])
-		cb.failureCount, _ = strconv.Atoi(state["failureCount"])
-		cb.successCount, _ = strconv.Atoi(state["successCount"])
-		cb.lastFailureTime, _ = time.Parse(time.RFC3339, state["lastFailureTime"])
+		cb.failureCount = parseOrDefault(strconv.Atoi, state["failureCount"], cb.failureCount)
+		cb.successCount = parseOrDefault(strconv.Atoi, state["successCount"], cb.successCount)
+		cb.lastFailureTime = parseTimeOrDefault(time.RFC3339, state["lastFailureTime"], cb.lastFailureTime)
 		cb.manualOverride = ManualOverride(state["manualOverride"])
-		cb.overrideConfigured, _ = strconv.ParseBool(state["overrideConfigured"])
+		cb.overrideConfigured = parseOrDefault(strconv.ParseBool, state["overrideConfigured"], cb.overrideConfigured)
 	}
 
 	return nil
