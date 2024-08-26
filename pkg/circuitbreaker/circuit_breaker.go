@@ -14,19 +14,34 @@ import (
 var redisClient *redis.RedisClient
 var ctx = context.Background() //TODO
 
+// SetupRedis initializes the Redis client with the given URL.
+// It must be called before using the circuit breaker functionality.
 func SetupRedis(url string) {
 	redisClient = new(redis.RedisClient)
 	redisClient.SetupRedis(url)
 }
 
+// State represents the state of the circuit breaker.
+// It can be one of Closed, Open, or HalfOpen.
 type State string
 
 const (
-	Closed   State = "CLOSED"
-	Open     State = "OPEN"
+	// Closed indicates that the circuit breaker is in a stable state,
+	// allowing all requests to pass through.
+	Closed State = "CLOSED"
+
+	// Open indicates that the circuit breaker is open and all requests
+	// are blocked until it transitions to HalfOpen.
+	Open State = "OPEN"
+
+	// HalfOpen indicates that the circuit breaker is partially open,
+	// allowing a limited number of requests to test if the issue has been resolved.
 	HalfOpen State = "HALF_OPEN"
 )
 
+// CircuitBreaker defines the interface for a circuit breaker.
+// It includes methods for handling requests, loading and saving state,
+// transitioning between states, and recording failures.
 type CircuitBreaker interface {
 	HandleRequest(f func() ([]byte, error)) ([]byte, error)
 	loadState() error
@@ -37,6 +52,9 @@ type CircuitBreaker interface {
 	transitionToOpen()
 }
 
+// BaseCircuitBreaker is a basic implementation of the CircuitBreaker interface.
+// It maintains state, failure counts, and success counts, and manages transitions
+// between states based on request outcomes and configurations.
 type BaseCircuitBreaker struct {
 	state                    State
 	manualOverride           ManualOverride
@@ -54,6 +72,11 @@ type BaseCircuitBreaker struct {
 	isInbound                bool // Indicates whether this is an inbound or outbound circuit breaker
 }
 
+// HandleRequest executes the given function while managing the circuit breaker state.
+// It locks the circuit breaker, checks the state, and transitions if necessary.
+// After unlocking, it calls the provided function and then locks again to record
+// failures or successes and save the state.
+// Returns the result of the function and any error encountered.
 func (cb *BaseCircuitBreaker) HandleRequest(f func() ([]byte, error)) ([]byte, error) {
 	cb.mu.Lock()
 
@@ -92,6 +115,9 @@ func (cb *BaseCircuitBreaker) HandleRequest(f func() ([]byte, error)) ([]byte, e
 	return resp, nil
 }
 
+// newCircuitBreaker creates and initializes a new BaseCircuitBreaker instance
+// for the specified endpoint. It configures the circuit breaker based on whether
+// it is inbound or outbound and loads the initial state from Redis.
 func newCircuitBreaker(endpoint string, isInbound bool) *BaseCircuitBreaker {
 	var config CircuitBreakerConfig
 
@@ -106,6 +132,8 @@ func newCircuitBreaker(endpoint string, isInbound bool) *BaseCircuitBreaker {
 		failureThreshold:         config.FailureThreshold,
 		halfOpenSuccessThreshold: config.HalfOpenSuccess,
 		openTimeout:              config.OpenTimeout,
+		overrideConfigured:       config.OverrideConfigured,
+		manualOverride:           config.ManualOverride, // Set the default manual override
 		isInbound:                isInbound,
 	}
 
@@ -117,6 +145,7 @@ func newCircuitBreaker(endpoint string, isInbound bool) *BaseCircuitBreaker {
 	return cb
 }
 
+// loadState retrieves the current state of the circuit breaker from Redis.
 func (cb *BaseCircuitBreaker) loadState() error {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
@@ -136,23 +165,29 @@ func (cb *BaseCircuitBreaker) loadState() error {
 		cb.failureCount, _ = strconv.Atoi(state["failureCount"])
 		cb.successCount, _ = strconv.Atoi(state["successCount"])
 		cb.lastFailureTime, _ = time.Parse(time.RFC3339, state["lastFailureTime"])
+		cb.manualOverride = ManualOverride(state["manualOverride"])
+		cb.overrideConfigured, _ = strconv.ParseBool(state["overrideConfigured"])
 	}
 
 	return nil
 }
 
+// saveState stores the current state of the circuit breaker, including the manual override,
+// in Redis. It updates the state, failure count, success count, last failure time,
+// manual override, and override configuration status.
 func (cb *BaseCircuitBreaker) saveState() error {
-
 	keyPrefix := "outbound:" // Default prefix for outbound
 	if cb.isInbound {
 		keyPrefix = "inbound:"
 	}
 
 	state := map[string]interface{}{
-		"state":           string(cb.state),
-		"failureCount":    cb.failureCount,
-		"successCount":    cb.successCount,
-		"lastFailureTime": cb.lastFailureTime.Format(time.RFC3339),
+		"state":              string(cb.state),
+		"failureCount":       cb.failureCount,
+		"successCount":       cb.successCount,
+		"lastFailureTime":    cb.lastFailureTime.Format(time.RFC3339),
+		"manualOverride":     string(cb.manualOverride),
+		"overrideConfigured": cb.overrideConfigured,
 	}
 
 	if err := redisClient.HSet(ctx, keyPrefix+cb.endpoint, state).Err(); err != nil {
@@ -162,6 +197,8 @@ func (cb *BaseCircuitBreaker) saveState() error {
 	return nil
 }
 
+// transitionToHalfOpen changes the state of the circuit breaker to HALF_OPEN.
+// It resets the failure and success counts and adjusts the open timeout to the base timeout.
 func (cb *BaseCircuitBreaker) transitionToHalfOpen() {
 	cb.state = HalfOpen
 	cb.failureCount = 0
@@ -170,6 +207,8 @@ func (cb *BaseCircuitBreaker) transitionToHalfOpen() {
 	logger.Infof("Circuit breaker transitioned to HALF_OPEN for endpoint %s", cb.endpoint)
 }
 
+// transitionToClosed changes the state of the circuit breaker to CLOSED.
+// It resets the failure and success counts and adjusts the open timeout to the base timeout.
 func (cb *BaseCircuitBreaker) transitionToClosed() {
 	cb.state = Closed
 	cb.failureCount = 0
@@ -181,6 +220,8 @@ func (cb *BaseCircuitBreaker) transitionToClosed() {
 	logger.Infof("Circuit breaker transitioned to CLOSED for endpoint %s", cb.endpoint)
 }
 
+// recordFailure increments the failure count and transitions to OPEN if the failure
+// threshold is reached. It also saves the current state.
 func (cb *BaseCircuitBreaker) recordFailure() {
 	cb.failureCount++
 	if cb.failureCount >= cb.failureThreshold {
@@ -190,6 +231,9 @@ func (cb *BaseCircuitBreaker) recordFailure() {
 	}
 }
 
+// transitionToOpen changes the state of the circuit breaker to OPEN.
+// It sets the open timeout with exponential backoff based on the failure count,
+// capping it at the maximum timeout value. It also updates the last failure time.
 func (cb *BaseCircuitBreaker) transitionToOpen() {
 	cb.state = Open
 	cb.lastFailureTime = time.Now()
