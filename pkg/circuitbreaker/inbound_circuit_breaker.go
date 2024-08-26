@@ -1,5 +1,7 @@
 package circuitbreaker
 
+import "net/http"
+
 // NewInboundCircuitBreaker creates and initializes a new BaseCircuitBreaker instance
 // for the specified inbound endpoint. It sets up the circuit breaker with configurations
 // retrieved from the inbound configuration map and loads its initial state from Redis.
@@ -41,4 +43,33 @@ func GetInboundCircuitBreakerConfig(endpoint string) CircuitBreakerConfig {
 		return DefaultCircuitBreakerConfig()
 	}
 	return config
+}
+
+// CircuitBreakerMiddleware returns a middleware function that applies circuit breaker logic to incoming HTTP requests.
+// It creates a new circuit breaker instance for each request based on the request URL and checks the circuit breaker state.
+// If the circuit breaker is in the OPEN state, it responds with a 503 Service Unavailable error.
+// Otherwise, it proceeds with the request handling.
+func CircuitBreakerMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			url := r.URL.RequestURI()
+			cb := NewInboundCircuitBreaker(url)
+
+			cb.mu.Lock()
+			state := cb.state
+			cb.mu.Unlock()
+
+			if state == Open {
+				// Return a custom response indicating the circuit is open
+				http.Error(w, "Service temporarily unavailable. Please try again later.", http.StatusServiceUnavailable)
+				return
+			}
+
+			if next != nil {
+				// Proceed with the request handling if the circuit is not open
+				next.ServeHTTP(w, r)
+			}
+
+		})
+	}
 }
