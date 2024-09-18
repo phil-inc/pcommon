@@ -1173,3 +1173,41 @@ func NormalizeSpace(s string) string {
 	space := regexp.MustCompile(`\s+`)
 	return space.ReplaceAllString(s, " ")
 }
+
+// SanitizeRxNumber standardizes the given RX number to the one we use in Phil
+// Params:
+// - rxNumber: The RX number to sanitize.
+// - npi: Some pharmacies have specific sanitization scenario
+// - shouldPrependZero: If true, the RX number is padded with leading 0's to ensure a length of 12 characters or more
+func SanitizeRxNumber(rxNumber, npi string, shouldPrependZero bool) string {
+	sanitizedNumber := rxNumber
+	sanitizedNumber = strings.TrimSpace(sanitizedNumber)
+	sanitizedNumber = strings.Trim(sanitizedNumber, "-")
+
+	// handle PL pharmacy and Lake Ridge Pharmacy weirdness they use Rx number of format -185420-01
+	if npi == "1205496569" || npi == "1407290356" {
+		sanitizedNumber = sanitizedNumber[0 : len(sanitizedNumber)-3]
+	}
+
+	// carepoint has a weird Rx number format of 12-digit 019142565001. For this sample rx number
+	// just pull out the middle part and remove the first 2 number (01) and last 3 letters (001)
+	if len(sanitizedNumber) == 12 && npi == "1598013864" {
+		sanitizedNumber = sanitizedNumber[2 : len(sanitizedNumber)-3]
+	}
+
+	if shouldPrependZero {
+		sanitizedNumber = parseTo12Character(sanitizedNumber)
+	}
+
+	return sanitizedNumber
+}
+
+// pad leading 0's to ensure a length of 12 characters or more
+func parseTo12Character(rxNumber string) string {
+	// If the string is longer than 12 digits, return it as is
+	if len(rxNumber) > 12 {
+		return rxNumber
+	}
+
+	return fmt.Sprintf("%012s", rxNumber)
+}
