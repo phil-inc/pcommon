@@ -1174,7 +1174,7 @@ func NormalizeSpace(s string) string {
 	return space.ReplaceAllString(s, " ")
 }
 
-// IsEqualPointerValues compares two pointers of any type, including *time.Time pointers.
+// ArePointerValuesEqual compares two pointers of any type, including *time.Time pointers.
 // If both pointers are nil, it returns true. If only one is nil, it returns false.
 // For *time.Time pointers, it uses the time.Time.Equal method for accurate comparison.
 // For other pointer types, it uses reflect.DeepEqual to compare the dereferenced values.
@@ -1185,7 +1185,7 @@ func NormalizeSpace(s string) string {
 //
 // Returns:
 //   - A boolean value indicating whether the two pointers are equal.
-func IsEqualPointerValues(p1, p2 interface{}) bool {
+func ArePointerValuesEqual(p1, p2 interface{}) bool {
 	// If either pointer is nil, return whether they are both nil
 	if p1 == nil || p2 == nil {
 		return p1 == p2
