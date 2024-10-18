@@ -1201,6 +1201,12 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 	v1 := reflect.ValueOf(p1)
 	v2 := reflect.ValueOf(p2)
 
+	// Check if either pointer is nil after the interface checks
+	if v1.IsNil() || v2.IsNil() {
+		// Return false if one is nil and the other is not
+		return v1.IsNil() == v2.IsNil()
+	}
+
 	if v1.Kind() != reflect.Ptr || v2.Kind() != reflect.Ptr {
 		// Return false if either is not a pointer
 		return false
