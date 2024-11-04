@@ -1215,3 +1215,14 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 	// Dereference the pointers and compare their values using reflect.DeepEqual
 	return reflect.DeepEqual(v1.Elem().Interface(), v2.Elem().Interface())
 }
+
+// FormatPatientDOB formats the given patientDOB in "MM/DD/YYYY" format.
+func FormatPatientDOB(patientDOB string) string {
+	dob, err := time.Parse(time.DateOnly, patientDOB)
+	if err != nil {
+		return ""
+	}
+
+	formattedDOB := dob.Format(MMDDYYYYDateFormat)
+	return formattedDOB
+}
