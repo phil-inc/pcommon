@@ -297,7 +297,7 @@ func AddWorkingDays(d time.Time, totalDays int) time.Time {
 		}
 
 		totalDays--
-		d = d.Add(time.Hour * 24)
+		d = d.AddDate(0, 0, 1)
 	}
 
 	//check if the last day is itself a holiday
@@ -341,7 +341,7 @@ func GetPreviousWorkingDay(d time.Time) time.Time {
 // GetNextWorkingDay returns the next working date from the given date
 func GetNextWorkingDay(d time.Time) time.Time {
 	for {
-		d = d.Add(time.Hour * 24)
+		d = d.AddDate(0, 0, 1)
 		if IsWorkingDay(d) {
 			return d
 		}
