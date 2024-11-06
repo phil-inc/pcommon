@@ -1217,7 +1217,15 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 }
 
 // FormatPatientDOB formats the given patientDOB in the given layout format.
-func FormatPatientDOB(returningLayout string, patientDOB interface{}) string {
+// If the returningLayout format is not provided, it will use the MMDDYYYYDateFormat.
+// patientDOB should only be in one of the following formats:
+// 1. YYYY-MM-DD
+// 2. MM-DD-YYYY
+// 3. YYYY/MM/DD
+// 4. MM/DD/YYYY
+// 5. YYYY.MM.DD
+// 6. MM.DD.YYYY
+func FormatPatientDOB(returningLayout string, patientDOB interface{}) (string, error) {
 
 	var parsedDate time.Time
 
@@ -1227,7 +1235,7 @@ func FormatPatientDOB(returningLayout string, patientDOB interface{}) string {
 
 	case string:
 		layouts := []string{
-			"2006-01-02", "02-01-2006", "2006/01/02", "02/01/2006", "2006-02-01", "01/02/2006", "01-02-2006", "2006/02/01",
+			"2006-01-02", "01-02-2006", "2006/01/02", "01/02/2006", "2006.01.02", "01.02.2006",
 		}
 
 		var err error
@@ -1240,7 +1248,11 @@ func FormatPatientDOB(returningLayout string, patientDOB interface{}) string {
 		}
 
 	default:
-		return ""
+		return "", errors.New("Date should either be in string or in time.Time format")
+	}
+
+	if parsedDate.IsZero() {
+		return "", errors.New("Invalid date format")
 	}
 
 	var formattedDOB string
@@ -1251,5 +1263,5 @@ func FormatPatientDOB(returningLayout string, patientDOB interface{}) string {
 		formattedDOB = parsedDate.Format(MMDDYYYYDateFormat)
 	}
 
-	return formattedDOB
+	return formattedDOB, nil
 }
