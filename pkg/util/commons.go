@@ -1218,27 +1218,29 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 
 // FormatPatientDOB formats the given patientDOB in the given layout format.
 func FormatPatientDOB(returningLayout string, patientDOB interface{}) string {
+
 	var parsedDate time.Time
 
-	if dobStr, ok := patientDOB.(time.Time); ok {
-		parsedDate = dobStr
+	switch dob := patientDOB.(type) {
+	case time.Time:
+		parsedDate = dob
 
-	} else if dobStr, ok := patientDOB.(string); ok {
+	case string:
 		layouts := []string{
-			"2006-01-02", "02-01-2006", "2006/01/02", "02/01/2006",
+			"2006-01-02", "02-01-2006", "2006/01/02", "02/01/2006", "2006-02-01", "01/02/2006", "01-02-2006", "2006/02/01",
 		}
 
 		var err error
 
-		// Try parsing with each layout
-
 		for _, layout := range layouts {
-			parsedDate, err = time.Parse(layout, dobStr)
+			parsedDate, err = time.Parse(layout, dob)
 			if err == nil {
-				// Return Unix timestamp if parsed successfully
 				break
 			}
 		}
+
+	default:
+		return ""
 	}
 
 	var formattedDOB string
@@ -1250,19 +1252,4 @@ func FormatPatientDOB(returningLayout string, patientDOB interface{}) string {
 	}
 
 	return formattedDOB
-
-	// if strings.Contains(dobStr, "/"){
-	// 	dobStr = strings.ReplaceAll(dobStr, "/", "-")
-	// }
-
-	// dob, _ := time.Parse("2006-01-02", dobStr)
-
-	// dob, err := time.Parse(time.DateOnly, patientDOB)
-	// if err != nil {
-	// 	return ""
-	// }
-
-	// formattedDOB := dob.Format(MMDDYYYYDateFormat)
-
-	// return formattedDOB
 }
