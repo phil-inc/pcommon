@@ -1218,15 +1218,15 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 
 // FormatPatientDOB formats the given patientDOB in the given layout format.
 // If the returningLayout format is not provided, it will use the MMDDYYYYDateFormat.
-// patientDOB should only be in one of the following formats:
+// patientDOB should be either in time.Time format or in one of the following formats:
 // 1. YYYY-MM-DD
 // 2. MM-DD-YYYY
 // 3. YYYY/MM/DD
 // 4. MM/DD/YYYY
 // 5. YYYY.MM.DD
 // 6. MM.DD.YYYY
+// Returns formatted date string and error if any
 func FormatPatientDOB(returningLayout string, patientDOB interface{}) (string, error) {
-
 	var parsedDate time.Time
 
 	switch dob := patientDOB.(type) {
