@@ -1216,9 +1216,9 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 	return reflect.DeepEqual(v1.Elem().Interface(), v2.Elem().Interface())
 }
 
-// FormatPatientDOB formats the given patientDOB in the given layout format.
+// StandardizeDate formats the given date in the given layout format.
 // If the returningLayout format is not provided, it will use the MMDDYYYYDateFormat.
-// patientDOB should be either in time.Time format or in one of the following formats:
+// patientDOB should be either in time.Time format or *time.Time format or in one of the following formats:
 // 1. YYYY-MM-DD
 // 2. MM-DD-YYYY
 // 3. YYYY/MM/DD
@@ -1226,10 +1226,17 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 // 5. YYYY.MM.DD
 // 6. MM.DD.YYYY
 // Returns formatted date string and error if any
-func FormatPatientDOB(returningLayout string, patientDOB interface{}) (string, error) {
+func StandardizeDate(returningLayout string, patientDOB interface{}) (string, error) {
 	var parsedDate time.Time
 
 	switch dob := patientDOB.(type) {
+	case *time.Time:
+		if dob == nil {
+			return "", nil
+		}
+
+		parsedDate = *dob
+
 	case time.Time:
 		parsedDate = dob
 
