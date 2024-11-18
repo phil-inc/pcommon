@@ -87,3 +87,10 @@ func Sort2DStringSliceByIndex(sl [][]string, i int) [][]string {
 
 	return sl
 }
+
+func ReverseSlice[T any](s []T) {
+	n := len(s)
+	for i := 0; i < n/2; i++ {
+		s[i], s[n-i-1] = s[n-i-1], s[i]
+	}
+}
