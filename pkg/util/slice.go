@@ -88,6 +88,19 @@ func Sort2DStringSliceByIndex(sl [][]string, i int) [][]string {
 	return sl
 }
 
+// ReverseSlice reverse a string slice .
+//
+// Parameters:
+//   - s: The input slice of any type to be reversed.
+//   - i: The index based on which the sorting is performed.
+//
+// Example:
+//
+//	s := []string{"100", "101", "DS", "102"}
+//	i := 0
+//	Returns sl = [102 DS 101 100]
+//
+// Returns the reversed string slice.
 func ReverseSlice[T any](s []T) {
 	n := len(s)
 	for i := 0; i < n/2; i++ {
