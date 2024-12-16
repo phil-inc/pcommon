@@ -1,6 +1,8 @@
 module github.com/phil-inc/pcommon
 
-go 1.18
+go 1.22.0
+
+toolchain go1.22.10
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.16.4
@@ -37,6 +39,7 @@ require (
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
+	golang.org/x/mod v0.22.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
