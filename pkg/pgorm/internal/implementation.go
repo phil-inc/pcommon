@@ -129,3 +129,22 @@ func (qb *QueryBuilderImpl) Where(condition string, args ...interface{}) QueryBu
 	qb.whereArgs = append(qb.whereArgs, args...)
 	return qb
 }
+
+func (qb *QueryBuilderImpl) Delete() (Result, error) {
+	qb.operation = "DELETE"
+
+	if qb.tableName == "" {
+		return Result{}, fmt.Errorf("table name is not specified")
+	}
+
+	query := fmt.Sprintf("DELETE FROM %s %s", qb.tableName, qb.where)
+
+	// Execute the query with the `where` arguments
+	result, err := qb.db.Exec(query, qb.whereArgs...)
+	if err != nil {
+		return Result{}, fmt.Errorf("delete operation failed: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	return Result{RowsAffected: rowsAffected}, nil
+}

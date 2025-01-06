@@ -6,10 +6,11 @@ type QueryBuilder interface {
 	Table(model Model) QueryBuilder
 	Returning(columns ...string) QueryBuilder
 	Set(model interface{}) QueryBuilder
+	Where(condition string, args ...interface{}) QueryBuilder
 	Insert(model interface{}) (Result, error)
 	Update() (Result, error)
+	Delete() (Result, error)
 	Select() (interface{}, error)
-	Where(condition string, args ...interface{}) QueryBuilder
 }
 
 type QueryBuilderImpl struct {
