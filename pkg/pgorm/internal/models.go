@@ -5,6 +5,7 @@ import "database/sql"
 type QueryBuilder interface {
 	Table(model Model) QueryBuilder
 	Returning(columns ...string) QueryBuilder
+	Set(model interface{}) QueryBuilder
 	Insert(model interface{}) (Result, error)
 	Update() (Result, error)
 	Select() (interface{}, error)
