@@ -10,7 +10,7 @@ Assumptions:
 
 ## Usage
 
-See [./bedrock_agent_test.go][].
+See [./bedrock_agent_test.go]().
 
 Requires AWS credentials for PHIL staging.
 
