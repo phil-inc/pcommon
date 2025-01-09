@@ -9,19 +9,39 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
 )
 
-// InvokeAWSBedrockAgent invokes the AWS Bedrock agent with the provided parameters.
-func InvokeAWSBedrockAgent(cfg aws.Config, ctx context.Context, agentID, inputText, sessionID string) (string, error) {
-	bedrockAgentRuntime := bedrockagentruntime.NewFromConfig(cfg)
+type Bedrock struct {
+	cfg     aws.Config
+	agentID string
+	client  *bedrockagentruntime.Client
+}
 
+func NewBedrock(cfg aws.Config, agentID string) *Bedrock {
+	return &Bedrock{
+		cfg:     cfg,
+		agentID: agentID,
+		client:  bedrockagentruntime.NewFromConfig(cfg),
+	}
+}
+
+func (b *Bedrock) Config() aws.Config {
+	return b.cfg
+}
+
+func (b *Bedrock) AgentID() string {
+	return b.agentID
+}
+
+// InvokeAWSBedrockAgent invokes the AWS Bedrock agent with the provided parameters.
+func (b *Bedrock) InvokeAWSBedrockAgent(ctx context.Context, inputText, sessionID string) (string, error) {
 	// Invoke the Bedrock agent
-	response, err := bedrockAgentRuntime.InvokeAgent(ctx, &bedrockagentruntime.InvokeAgentInput{
+	response, err := b.client.InvokeAgent(ctx, &bedrockagentruntime.InvokeAgentInput{
 		// TODO: Allow parameters to be passed in herre
 		// AgentId:         aws.String(agentID),
 		// InputText:       aws.String(inputText),
 		// SessionId:       aws.String(sessionID),
 	})
 	if err != nil {
-		return "", fmt.Errorf("error invoking knowledge base: %w", err)
+		return "", fmt.Errorf("error invoking agent: %w", err)
 	}
 
 	// Process the response
