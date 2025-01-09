@@ -713,7 +713,7 @@ func HasMatchingTimeZone(ctx context.Context, userState, jobTimeZone string) boo
 		tz = CstTimeZone
 	}
 
-	return tz == jobTimeZone
+	return strings.EqualFold(tz, jobTimeZone)
 }
 
 // LoadTimeZoneLocation loads Location based on given timezone
