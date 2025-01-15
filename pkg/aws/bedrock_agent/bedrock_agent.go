@@ -71,14 +71,11 @@ func (b *Builder) Build() (*Service, error) {
 		b.awsConfig = &awsConfig
 	}
 
-	b.agentClient = bedrockagent.NewFromConfig(*b.awsConfig)
-	b.agentRuntimeClient = bedrockagentruntime.NewFromConfig(*b.awsConfig)
-
 	return &Service{
 		config:             b.config,
 		awsConfig:          b.awsConfig,
-		agentClient:        b.agentClient,
-		agentRuntimeClient: b.agentRuntimeClient,
+		agentClient:        bedrockagent.NewFromConfig(*b.awsConfig),
+		agentRuntimeClient: bedrockagentruntime.NewFromConfig(*b.awsConfig),
 	}, nil
 }
 
