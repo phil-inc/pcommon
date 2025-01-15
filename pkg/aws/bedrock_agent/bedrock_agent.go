@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagent"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagent/types"
@@ -39,34 +40,53 @@ type BedrockAgentRuntimeClient interface {
 
 // Service represents the BedrockAgent service
 type Service struct {
-	config             Config
+	config             *Config
+	awsConfig          *aws.Config
 	agentClient        BedrockAgentClient
 	agentRuntimeClient BedrockAgentRuntimeClient
 }
 
-// NewService creates a new instance of the BedrockAgent service
-func NewService(cfg Config) (*Service, error) {
-	awsCfg, err := config.LoadDefaultConfig(context.Background(),
-		config.WithRegion(cfg.Region),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load AWS config: %w", err)
+type Builder struct {
+	config             *Config
+	awsConfig          *aws.Config
+	agentClient        BedrockAgentClient
+	agentRuntimeClient BedrockAgentRuntimeClient
+}
+
+func New() *Builder {
+	return &Builder{}
+}
+
+func (b *Builder) Build() (*Service, error) {
+	if b.config == nil {
+		return nil, fmt.Errorf("agent config is required")
+	}
+	if b.awsConfig == nil {
+		awsConfig, err := config.LoadDefaultConfig(context.Background(),
+			config.WithRegion(b.config.Region),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load AWS config: %w", err)
+		}
+		b.awsConfig = &awsConfig
 	}
 
 	return &Service{
-		config:             cfg,
-		agentClient:        bedrockagent.NewFromConfig(awsCfg),
-		agentRuntimeClient: bedrockagentruntime.NewFromConfig(awsCfg),
+		config:             b.config,
+		awsConfig:          b.awsConfig,
+		agentClient:        bedrockagent.NewFromConfig(*b.awsConfig),
+		agentRuntimeClient: bedrockagentruntime.NewFromConfig(*b.awsConfig),
 	}, nil
 }
 
-// NewServiceWithClients creates a new service instance with custom clients (useful for testing)
-func NewServiceWithClients(cfg Config, agentClient BedrockAgentClient, runtimeClient BedrockAgentRuntimeClient) *Service {
-	return &Service{
-		config:             cfg,
-		agentClient:        agentClient,
-		agentRuntimeClient: runtimeClient,
-	}
+func (b *Builder) Config(config *Config) *Builder {
+	b.config = config
+	return b
+}
+
+func (b *Builder) AWSConfig(awsConfig *aws.Config) *Builder {
+	b.awsConfig = awsConfig
+	return b
 }
 
 // ProcessCardHistory processes the card history and returns a response

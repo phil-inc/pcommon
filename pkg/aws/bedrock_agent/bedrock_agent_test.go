@@ -13,7 +13,7 @@ func TestLiveAgent(t *testing.T) {
 		Region:       "us-east-1",
 	}
 
-	service, err := NewService(cfg)
+	service, err := New().Config(&cfg).Build()
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
