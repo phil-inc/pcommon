@@ -3,6 +3,8 @@ package bedrock_agent
 import (
 	"context"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/config"
 )
 
 func TestLiveAgent(t *testing.T) {
@@ -13,10 +15,14 @@ func TestLiveAgent(t *testing.T) {
 		Region:       "us-east-1",
 	}
 
-	service, err := NewService(cfg)
+	awsCfg, err := config.LoadDefaultConfig(context.Background(),
+		config.WithRegion(cfg.Region),
+	)
 	if err != nil {
-		t.Fatalf("Failed to create service: %v", err)
+		t.Fatalf("Failed to load AWS config: %v", err)
 	}
+
+	service := New().Config(cfg).AWSConfig(awsCfg).Build()
 
 	cardHistory := `{"hello"}`
 
