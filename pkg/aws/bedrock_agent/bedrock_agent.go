@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagent"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagent/types"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime"
@@ -39,15 +40,15 @@ type BedrockAgentRuntimeClient interface {
 
 // Service represents the BedrockAgent service
 type Service struct {
-	config             Config
-	awsConfig          aws.Config
+	config             *Config
+	awsConfig          *aws.Config
 	agentClient        BedrockAgentClient
 	agentRuntimeClient BedrockAgentRuntimeClient
 }
 
 type Builder struct {
-	config             Config
-	awsConfig          aws.Config
+	config             *Config
+	awsConfig          *aws.Config
 	agentClient        BedrockAgentClient
 	agentRuntimeClient BedrockAgentRuntimeClient
 }
@@ -56,38 +57,38 @@ func New() *Builder {
 	return &Builder{}
 }
 
-func (b *Builder) Build() *Service {
-	if b.agentClient == nil {
-		b.agentClient = bedrockagent.NewFromConfig(b.awsConfig)
+func (b *Builder) Build() (*Service, error) {
+	if b.config == nil {
+		return nil, fmt.Errorf("agent config is required")
 	}
-	if b.agentRuntimeClient == nil {
-		b.agentRuntimeClient = bedrockagentruntime.NewFromConfig(b.awsConfig)
+	if b.awsConfig == nil {
+		awsConfig, err := config.LoadDefaultConfig(context.Background(),
+			config.WithRegion(b.config.Region),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load AWS config: %w", err)
+		}
+		b.awsConfig = &awsConfig
 	}
+
+	b.agentClient = bedrockagent.NewFromConfig(*b.awsConfig)
+	b.agentRuntimeClient = bedrockagentruntime.NewFromConfig(*b.awsConfig)
+
 	return &Service{
 		config:             b.config,
 		awsConfig:          b.awsConfig,
 		agentClient:        b.agentClient,
 		agentRuntimeClient: b.agentRuntimeClient,
-	}
+	}, nil
 }
 
-func (b *Builder) Config(config Config) *Builder {
+func (b *Builder) Config(config *Config) *Builder {
 	b.config = config
 	return b
 }
 
-func (b *Builder) AWSConfig(awsConfig aws.Config) *Builder {
+func (b *Builder) AWSConfig(awsConfig *aws.Config) *Builder {
 	b.awsConfig = awsConfig
-	return b
-}
-
-func (b *Builder) AgentClient(agentClient BedrockAgentClient) *Builder {
-	b.agentClient = agentClient
-	return b
-}
-
-func (b *Builder) AgentRuntimeClient(agentRuntimeClient BedrockAgentRuntimeClient) *Builder {
-	b.agentRuntimeClient = agentRuntimeClient
 	return b
 }
 
