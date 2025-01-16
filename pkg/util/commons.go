@@ -1219,3 +1219,60 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 	// Dereference the pointers and compare their values using reflect.DeepEqual
 	return reflect.DeepEqual(v1.Elem().Interface(), v2.Elem().Interface())
 }
+
+// StandardizeDate formats the given date in the given layout format.
+// If the returningLayout format is not provided, it will use the MMDDYYYYDateFormat.
+// patientDOB should be either in time.Time format or *time.Time format or in one of the following formats:
+// 1. YYYY-MM-DD
+// 2. MM-DD-YYYY
+// 3. YYYY/MM/DD
+// 4. MM/DD/YYYY
+// 5. YYYY.MM.DD
+// 6. MM.DD.YYYY
+// Returns formatted date string and error if any
+func StandardizeDate(returningLayout string, patientDOB interface{}) (string, error) {
+	var parsedDate time.Time
+
+	switch dob := patientDOB.(type) {
+	case *time.Time:
+		if dob == nil {
+			return "", nil
+		}
+
+		parsedDate = *dob
+
+	case time.Time:
+		parsedDate = dob
+
+	case string:
+		layouts := []string{
+			"2006-01-02", "01-02-2006", "2006/01/02", "01/02/2006", "2006.01.02", "01.02.2006",
+		}
+
+		var err error
+
+		for _, layout := range layouts {
+			parsedDate, err = time.Parse(layout, dob)
+			if err == nil {
+				break
+			}
+		}
+
+	default:
+		return "", errors.New("Date should either be in string or in time.Time format")
+	}
+
+	if parsedDate.IsZero() {
+		return "", errors.New("Invalid date format")
+	}
+
+	var formattedDOB string
+
+	if returningLayout != "" {
+		formattedDOB = parsedDate.Format(returningLayout)
+	} else {
+		formattedDOB = parsedDate.Format(MMDDYYYYDateFormat)
+	}
+
+	return formattedDOB, nil
+}
