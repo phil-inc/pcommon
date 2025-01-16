@@ -124,7 +124,7 @@ func (qb *QueryBuilderImpl) Select() (interface{}, error) {
 }
 
 func (qb *QueryBuilderImpl) Where(condition string, args ...interface{}) QueryBuilder {
-	placeholderIndex := len(qb.whereArgs)
+	placeholderIndex := len(qb.whereArgs) + len(qb.values)
 	qb.where = "WHERE " + replacePlaceholders(condition, placeholderIndex)
 	qb.whereArgs = append(qb.whereArgs, args...)
 	return qb
