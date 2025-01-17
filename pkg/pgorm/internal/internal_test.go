@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
@@ -168,5 +169,47 @@ func TestSelect(t *testing.T) {
 
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("mock expectations were not met: %v", err)
+	}
+}
+
+func TestIsZeroValue(t *testing.T) {
+	i := new(int)
+	*i = 5
+	tests := []struct {
+		name  string
+		value interface{}
+		want  bool
+	}{
+		{"Nil interface", nil, true},
+		{"Nil pointer", (*int)(nil), true},
+		{"Non-nil pointer", i, false},
+		{"Zero int", 0, true},
+		{"Non-zero int", 42, false},
+		{"Zero string", "", true},
+		{"Non-zero string", "hello", false},
+		{"Empty slice", []int{}, true},
+		{"Non-empty slice", []int{1, 2, 3}, false},
+		{"Empty map", map[string]int{}, true},
+		{"Non-empty map", map[string]int{"key": 42}, false},
+		{"Nil slice", []int(nil), true},
+		{"Empty array", [3]int{}, true},
+		{"Non-empty array", [3]int{1, 2, 3}, false},
+		{"Zero struct", struct{}{}, true},
+		{"Non-zero struct", struct{ A int }{A: 1}, false},
+		{"Zero time", time.Time{}, true},
+		{"Non-zero time", time.Now(), false},
+		{"Empty channel", make(chan int), true},
+		{"Non-nil, unused channel", func() chan int { return make(chan int) }(), true},
+		{"Non-nil, active channel", func() chan int { ch := make(chan int, 1); ch <- 42; return ch }(), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value := reflect.ValueOf(tt.value)
+			got := isZeroValue(value)
+			if got != tt.want {
+				t.Errorf("isZeroValue(%v) = %v; want %v", tt.value, got, tt.want)
+			}
+		})
 	}
 }

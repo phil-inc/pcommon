@@ -44,12 +44,43 @@ func extractColumnsAndValues(model interface{}) ([]string, []interface{}, []stri
 }
 
 func isZeroValue(value reflect.Value) bool {
+	if !value.IsValid() {
+		// Invalid reflect.Value indicates a zero value
+		return true
+	}
+
 	switch value.Kind() {
 	case reflect.Ptr, reflect.Interface:
-		return value.IsNil()
-	case reflect.Array, reflect.Slice, reflect.Map, reflect.Chan:
-		return value.Len() == 0
+		if value.IsNil() {
+			// A nil pointer or interface is a zero value
+			return true
+		}
+		// If the pointer/interface is non-nil, check the underlying value
+		return isZeroValue(value.Elem())
+	case reflect.Array:
+		// Check if all elements in the array are zero
+		for i := 0; i < value.Len(); i++ {
+			if !isZeroValue(value.Index(i)) {
+				return false
+			}
+		}
+		return true
+	case reflect.Slice, reflect.Map, reflect.Chan:
+		return value.IsNil() || value.Len() == 0
+	case reflect.Struct:
+		if value.Type().String() == "time.Time" {
+			// Special handling for time.Time zero value
+			return value.Interface() == reflect.Zero(value.Type()).Interface()
+		}
+		// Check if all fields in the struct are zero
+		for i := 0; i < value.NumField(); i++ {
+			if !isZeroValue(value.Field(i)) {
+				return false
+			}
+		}
+		return true
 	default:
+		// Compare with the zero value of the same type
 		zeroValue := reflect.Zero(value.Type())
 		return reflect.DeepEqual(value.Interface(), zeroValue.Interface())
 	}
