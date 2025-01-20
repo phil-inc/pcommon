@@ -15,8 +15,16 @@ func (qb *QueryBuilderImpl) Table(model Model) QueryBuilder {
 	return qb
 }
 
-func (qb *QueryBuilderImpl) Returning(columns ...string) QueryBuilder {
-	qb.columns = append(qb.columns, columns...)
+func (qb *QueryBuilderImpl) Returning(model interface{}, columns ...string) QueryBuilder {
+	if len(columns) == 0 {
+		qb.returning = "" // Explicitly set no RETURNING clause
+	} else if len(columns) == 1 && columns[0] == "*" {
+		columnVals, _, _ := extractColumnsAndValues(model)
+		qb.returning = strings.Join(columnVals, ", ") // Return all columns
+	} else {
+		qb.returning = strings.Join(columns, ", ") //Return sepcified columns
+	}
+
 	return qb
 }
 
@@ -33,6 +41,39 @@ func (qb *QueryBuilderImpl) Insert(model interface{}) (Result, error) {
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "),
 	)
+
+	if qb.returning != "" {
+		query += fmt.Sprintf(" RETURNING %s", qb.returning)
+
+		rows, err := qb.db.Query(query, values...)
+		if err != nil {
+			return Result{}, err
+		}
+		defer rows.Close()
+
+		returningResults := map[string]interface{}{}
+		rowsAffected := 0
+		if rows.Next() {
+			columnNames := strings.Split(qb.returning, ", ")
+			columns := make([]interface{}, len(columnNames))
+			columnPointers := make([]interface{}, len(columnNames))
+			for i := range columns {
+				columnPointers[i] = &columns[i]
+			}
+
+			if err := rows.Scan(columnPointers...); err != nil {
+				return Result{}, fmt.Errorf("error scanning returning columns: %w", err)
+			}
+
+			for i, col := range columnNames {
+				returningResults[col] = columns[i]
+			}
+			rowsAffected++
+		}
+
+		return Result{RowsAffected: int64(rowsAffected), Returning: returningResults}, nil
+
+	}
 
 	result, err := qb.db.Exec(query, values...)
 	if err != nil {
@@ -63,6 +104,40 @@ func (qb *QueryBuilderImpl) Update() (Result, error) {
 	)
 
 	args := append(qb.values, qb.whereArgs...)
+
+	if qb.returning != "" {
+		query += fmt.Sprintf(" RETURNING %s", qb.returning)
+
+		rows, err := qb.db.Query(query, args...)
+
+		if err != nil {
+			return Result{}, err
+		}
+		defer rows.Close()
+
+		returningResults := map[string]interface{}{}
+		rowsAffected := 0
+		if rows.Next() {
+			columnNames := strings.Split(qb.returning, ", ")
+			columns := make([]interface{}, len(columnNames))
+			columnPointers := make([]interface{}, len(columnNames))
+			for i := range columns {
+				columnPointers[i] = &columns[i]
+			}
+
+			if err := rows.Scan(columnPointers...); err != nil {
+				return Result{}, fmt.Errorf("error scanning returning columns: %w", err)
+			}
+
+			for i, col := range columnNames {
+				returningResults[col] = columns[i]
+			}
+			rowsAffected++
+		}
+
+		return Result{RowsAffected: int64(rowsAffected), Returning: returningResults}, nil
+	}
+
 	result, err := qb.db.Exec(query, args...)
 	if err != nil {
 		return Result{}, err

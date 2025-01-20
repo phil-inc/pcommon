@@ -42,7 +42,7 @@ func main() {
  qb := pgorm.NewQueryBuilder(db)
 
  // Example: INSERT query
- result, err := qb.Table(User{}).Returning("id").Insert(User{
+ result, err := qb.Table(User{}).Returning(User{},"id").Insert(User{
   Name:  "John Doe",
   Email: "johndoe@email.com",
  })

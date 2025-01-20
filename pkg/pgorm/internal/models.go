@@ -4,7 +4,7 @@ import "database/sql"
 
 type QueryBuilder interface {
 	Table(model Model) QueryBuilder
-	Returning(columns ...string) QueryBuilder
+	Returning(model interface{}, columns ...string) QueryBuilder
 	Set(model interface{}) QueryBuilder
 	Where(condition string, args ...interface{}) QueryBuilder
 	Insert(model interface{}) (Result, error)
@@ -21,6 +21,7 @@ type QueryBuilderImpl struct {
 	operation string
 	where     string
 	whereArgs []interface{}
+	returning string
 }
 
 type Model interface {
@@ -29,4 +30,5 @@ type Model interface {
 
 type Result struct {
 	RowsAffected int64
+	Returning    map[string]interface{}
 }
