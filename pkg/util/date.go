@@ -297,7 +297,7 @@ func AddWorkingDays(d time.Time, totalDays int) time.Time {
 		}
 
 		totalDays--
-		d = d.Add(time.Hour * 24)
+		d = d.AddDate(0, 0, 1)
 	}
 
 	//check if the last day is itself a holiday
@@ -317,7 +317,7 @@ func SubtractWorkingDays(d time.Time, totalDays int) time.Time {
 		}
 
 		totalDays--
-		d = d.Add(-1 * time.Hour * 24)
+		d = d.AddDate(0, 0, -1)
 	}
 
 	//check if the last day is itself a holiday
@@ -331,7 +331,7 @@ func SubtractWorkingDays(d time.Time, totalDays int) time.Time {
 // GetPreviousWorkingDay returns the previous working date from the given date
 func GetPreviousWorkingDay(d time.Time) time.Time {
 	for {
-		d = d.Add(-1 * time.Hour * 24)
+		d = d.AddDate(0, 0, -1)
 		if IsWorkingDay(d) {
 			return d
 		}
@@ -341,7 +341,7 @@ func GetPreviousWorkingDay(d time.Time) time.Time {
 // GetNextWorkingDay returns the next working date from the given date
 func GetNextWorkingDay(d time.Time) time.Time {
 	for {
-		d = d.Add(time.Hour * 24)
+		d = d.AddDate(0, 0, 1)
 		if IsWorkingDay(d) {
 			return d
 		}
@@ -713,7 +713,7 @@ func HasMatchingTimeZone(ctx context.Context, userState, jobTimeZone string) boo
 		tz = CstTimeZone
 	}
 
-	return tz == jobTimeZone
+	return strings.EqualFold(tz, jobTimeZone)
 }
 
 // LoadTimeZoneLocation loads Location based on given timezone

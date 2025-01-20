@@ -228,11 +228,15 @@ func SanitizeOrderNumber(orderNumber string) string {
 }
 
 // SanitizeZip cleans up the zipcode
-func SanitizeZip(zip string) string {
-	if len(zip) > 5 {
-		return zip[:5]
+func SanitizeZip(zipCode string) string {
+	zipCode = strings.TrimSpace(zipCode)
+	if len(zipCode) < 5 {
+		return fmt.Sprintf("%05s", zipCode)
 	}
-	return zip
+	if len(zipCode) > 5 {
+		return zipCode[:5]
+	}
+	return zipCode
 }
 
 // SanitizeStreetAddress cleans up street address
