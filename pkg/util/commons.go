@@ -1219,3 +1219,17 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 	// Dereference the pointers and compare their values using reflect.DeepEqual
 	return reflect.DeepEqual(v1.Elem().Interface(), v2.Elem().Interface())
 }
+
+// hasCommonElement checks if there is at least one common element between two string arrays
+func hasCommonElement(arr1, arr2 []string) bool {
+	// Loop through each element in arr2 and check if it exists in arr1
+	for _, elem2 := range arr2 {
+		for _, elem1 := range arr1 {
+			if elem2 == elem1 {
+				return true
+			}
+		}
+	}
+	// Return false if no common element is found
+	return false
+}
