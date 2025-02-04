@@ -1219,3 +1219,9 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 	// Dereference the pointers and compare their values using reflect.DeepEqual
 	return reflect.DeepEqual(v1.Elem().Interface(), v2.Elem().Interface())
 }
+
+// checks if the string is a valid order number (Valid Format: xxxx-xx/xxxx-xxx/xxxx)
+func IsOrderNumber(text string) bool {
+	matched, _ := regexp.MatchString(`^((\d{4})-(\d{2}|\d{4})-(\d{3,4}))$`, text)
+	return matched
+}
