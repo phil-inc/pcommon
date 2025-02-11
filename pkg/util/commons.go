@@ -188,6 +188,7 @@ func FormatValidPhone(phoneNumber string) string {
 	return phoneNumber
 }
 
+// IsValidDomain checks if a given string is a valid domain name
 func IsValidDomain(domainName string) bool {
 	// This regex validates a domain name, ensuring:
 	// - Labels (parts separated by dots) consist of alphanumeric characters or hyphens,
