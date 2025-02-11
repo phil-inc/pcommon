@@ -1234,14 +1234,14 @@ func DoesFuzzyMatch(source, target string, maxOperations int) bool {
 	sl = strings.ReplaceAll(sl, " ", "")
 	tl = strings.ReplaceAll(tl, " ", "")
 
-	// if both matches, donot proceed
-	if sl == tl {
-		return true
-	}
-
 	// if either of string is empty, donot proceed
 	if sl == "" || tl == "" {
 		return false
+	}
+
+	// if both matches, donot proceed
+	if sl == tl {
+		return true
 	}
 
 	lenS := len(sl)
