@@ -1262,12 +1262,12 @@ func DoesFuzzyMatch(source, target string, maxOperations int) bool {
 	/*
 		* for source phil and target pihl, dpm would look something like this after initialization
 		* dpm =
-			'' p  h  i  l
-		'' 0  1  2  3  4
-		p  1  0  0  0  0
-		i  2  0  0  0  0
-		h  3  0  0  0  0
-		l  4  0  0  0  0
+			''	p	h	i	l
+		''	0	1	2	3	4
+		p	1	0	0	0	0
+		i	2	0	0	0	0
+		h	3	0	0	0	0
+		l	4	0	0	0	0
 	*/
 
 	for i := 1; i <= lenS; i++ {
@@ -1295,12 +1295,12 @@ func DoesFuzzyMatch(source, target string, maxOperations int) bool {
 	/*
 		* for source phil and target pihl, dpm would look something like this after Damerau–Levenshtein distance algorithm
 		* dpm =
-			'' p  h  i  l
-		'' 0  1  2  3  4
-		p  1  0  1  2  3
-		i  2  1  1  1  2
-		h  3  2  1  1  2
-		l  4  3  2  2  1
+			''	p	h	i	l
+		''	0	1	2	3	4
+		p	1	0	1	2	3
+		i	2	1	1	1	2
+		h	3	2	1	1	2
+		l	4	3	2	2	1
 	*/
 
 	// compare  with final total operations required
