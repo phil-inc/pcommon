@@ -1239,6 +1239,11 @@ func DoesFuzzyMatch(source, target string, maxOperations int) bool {
 		return true
 	}
 
+	// if either of string is empty, donot proceed
+	if sl == "" || tl == "" {
+		return false
+	}
+
 	lenS := len(sl)
 	lenT := len(tl)
 
