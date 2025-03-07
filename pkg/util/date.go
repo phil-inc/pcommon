@@ -156,11 +156,13 @@ func DayEndTime() time.Time {
 
 // DateStartTimePST return the start date time for given date as PST
 func DateStartTimePST(t *time.Time) time.Time {
+	t = ToPST(t)
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, LocationPST)
 }
 
 // DateEndTimePST return the end date time for given date as PST
 func DateEndTimePST(t *time.Time) time.Time {
+	t = ToPST(t)
 	return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, LocationPST)
 }
 
