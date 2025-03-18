@@ -210,3 +210,55 @@ func ReadFileFromLegacySFTP(usr, password, address, srcFile, dstFile string) (in
 
 	return ReadFileFromSFTPUsingConfig(config, address, srcFile, dstFile)
 }
+
+// Read file from SFTP server to source directory
+func GetFilesListFromSFTP(host, user, password, port, path string) ([]string, error) {
+	// Initialize client configuration
+	config := &ssh.ClientConfig{
+		User: user,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
+		},
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return nil
+		},
+	}
+
+	address := fmt.Sprintf("%s:%s", host, port)
+
+	return GetFilesListFromSFTPUsingConfig(config, address, path)
+}
+
+func GetFilesListFromSFTPUsingConfig(config *ssh.ClientConfig, address, path string) ([]string, error) {
+	fileList := []string{}
+
+	// Connect to server
+	connection, err := ssh.Dial("tcp", address, config)
+	if err != nil {
+		return fileList, err
+	}
+
+	defer connection.Close()
+
+	// Create new SFTP client
+	client, err := sftp.NewClient(connection)
+	if err != nil {
+		return fileList, err
+	}
+
+	defer client.Close()
+
+	files, err := client.ReadDir(path)
+	if err != nil {
+		return fileList, err
+	}
+
+	for _, file := range files {
+		if !file.IsDir() {
+			fileList = append(fileList, file.Name())
+		}
+	}
+
+	return fileList, nil
+
+}
