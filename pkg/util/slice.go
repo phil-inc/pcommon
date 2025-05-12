@@ -67,6 +67,19 @@ func IsEqualSliceString(a []string, b []string) bool {
 	return true
 }
 
+// IsEqualSliceString2D compares if two 2D string slice has same string values
+func IsEqualSliceString2D(a, b [][]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !IsEqualSliceString(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 // Sort2DStringSliceByIndex sorts a 2D string slice based on the specified index.
 //
 // Parameters:
