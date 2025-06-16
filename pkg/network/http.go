@@ -283,7 +283,7 @@ func doHTTP(url, method, body string, headers map[string]string) ([]byte, error)
 		errResp := fmt.Sprintf("Http response NOT_OK. Status: %s, Code:%d", res.Status, res.StatusCode)
 		if res.Body != nil {
 			resp, _ := ioutil.ReadAll(res.Body)
-			errResp = errResp + fmt.Sprintf(", Body: %s", resp)
+			errResp = errResp + ", Body: " + string(resp)
 		}
 
 		return nil, fmt.Errorf(errResp)
