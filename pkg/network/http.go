@@ -2,6 +2,7 @@ package network
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"mime/multipart"
@@ -100,7 +101,7 @@ func parsePostResponse(res *http.Response, url string) ([]byte, error) {
 			errResp = errResp + fmt.Sprintf(", Body: %s", resp)
 		}
 
-		return nil, fmt.Errorf(errResp)
+		return nil, errors.New(errResp)
 	}
 
 	return ioutil.ReadAll(res.Body)
@@ -286,7 +287,7 @@ func doHTTP(url, method, body string, headers map[string]string) ([]byte, error)
 			errResp = errResp + ", Body: " + string(resp)
 		}
 
-		return nil, fmt.Errorf(errResp)
+		return nil, errors.New(errResp)
 	}
 
 	return ioutil.ReadAll(res.Body)
@@ -363,7 +364,7 @@ func HTTPMultipartPost(url string, body, headers map[string]string) ([]byte, err
 			errResp = errResp + fmt.Sprintf(", Body: %s", resp)
 		}
 
-		return nil, fmt.Errorf(errResp)
+		return nil, errors.New(errResp)
 	}
 
 	return ioutil.ReadAll(res.Body)
