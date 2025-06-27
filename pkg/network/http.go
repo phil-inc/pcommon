@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/phil-inc/pcommon/pkg/circuitbreaker"
 )
 
 type ErrorObject struct {
@@ -128,17 +130,21 @@ func HTTPGetWithTimeOut(url string, headers map[string]string, timeout int) ([]b
 // HTTPGet - makes a get request to the given URL and HTTP headers.
 // it returns response data byte or error
 func HTTPGet(url string, headers map[string]string) ([]byte, error) {
-	req, err := getNewRequest("GET", url, headers)
-	if err != nil {
-		return nil, err
-	}
+	cb := circuitbreaker.NewOutboundCircuitBreaker(url)
+	return cb.HandleRequest(func() ([]byte, error) {
+		req, err := getNewRequest("GET", url, headers)
+		if err != nil {
+			return nil, err
+		}
 
-	res, err := httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
+		res, err := httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
 
-	return parseGetResponse(res, url)
+		return parseGetResponse(res, url)
+
+	})
 }
 
 // HTTPGetWithBasicAuth - makes a get request to the given URL and HTTP headers With Basic Auth
