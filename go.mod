@@ -1,8 +1,8 @@
 module github.com/phil-inc/pcommon
 
-go 1.23
+go 1.22.0
 
-toolchain go1.24.5
+toolchain go1.22.10
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.32.8
