@@ -1,8 +1,8 @@
 module github.com/phil-inc/pcommon
 
-go 1.22.0
+go 1.23
 
-toolchain go1.22.10
+toolchain go1.24.5
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.32.8
@@ -14,6 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.26.10
 	github.com/gabriel-vasile/mimetype v1.4.1
 	github.com/golang-jwt/jwt/v4 v4.4.3
+	github.com/golang/mock v1.6.0
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jlaffaye/ftp v0.0.0-20220310202011-d2c44e311e78
 	github.com/knadh/koanf v1.4.2
@@ -24,6 +25,7 @@ require (
 	github.com/redis/go-redis/v9 v9.5.1
 	github.com/rickar/cal/v2 v2.1.15
 	github.com/spf13/cast v1.6.0
+	go.uber.org/mock v0.5.2
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 	golang.org/x/mod v0.22.0
 )
