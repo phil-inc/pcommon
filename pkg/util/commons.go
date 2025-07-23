@@ -1311,3 +1311,9 @@ func DoesFuzzyMatch(source, target string, maxOperations int) bool {
 	// compare  with final total operations required
 	return dpm[lenS][lenT] <= maxOperations
 }
+
+func SanitizeICDCode(icdCode string) string {
+	sanitized := strings.ReplaceAll(icdCode, "-", "")
+	sanitized = strings.ReplaceAll(sanitized, ".", "")
+	return strings.TrimSpace(sanitized)
+}
