@@ -371,6 +371,11 @@ func IsStage() bool {
 	return Config("app.environment") == "stage"
 }
 
+// IsTest check if application is running in test env
+func IsTest() bool {
+	return Config("app.environment") == "test"
+}
+
 // IsDebugMode check if app is running in debug mode. Does heavy logging
 func IsDebugMode() bool {
 	return gconfig.Gcg.GetBool("app.debugMode")
