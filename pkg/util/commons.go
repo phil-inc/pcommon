@@ -979,6 +979,10 @@ func GetPhilLogoURL() string {
 	return fmt.Sprintf("%s/img/insert-card/p-new-log-black.svg", Config("dashboard.server.url"))
 }
 
+func GetPhilRxLogoURL() string {
+	return fmt.Sprintf("%s/img/insert-card/PHILRX_Logo_Black.png", Config("dashboard.server.url"))
+}
+
 func IsGreaterThan(number, value float64) bool {
 	return number > value
 }
