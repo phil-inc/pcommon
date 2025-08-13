@@ -239,18 +239,29 @@ func HumanDate(date *time.Time) string {
 
 // ToPST converts the given UTC date to PST
 func ToPST(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+
 	ts := t.In(LocationPST)
 	return &ts
 }
 
 // ToEST converts the given UTC date to EST
 func ToEST(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+
 	ts := t.In(LocationEST)
 	return &ts
 }
 
 // ToTimeZone converts the given UTC date to given time zone
 func ToTimeZone(t *time.Time, tz string) *time.Time {
+	if t == nil {
+		return t
+	}
 	loc, _ := LoadTimeZoneLocation(tz)
 	ts := t.In(loc)
 	return &ts
@@ -678,6 +689,7 @@ func GetFormattedDateFromString(dateStr string) *time.Time {
 
 // ToISODateTime converts a given time to its ISO 8601 representation.
 func ToISODateTime(t *time.Time) string {
+
 	return t.Format(time.RFC3339)
 }
 
