@@ -198,7 +198,7 @@ func (ps3 *S3Client) UploadFileFromPath(ctx context.Context, bucket, fileName, f
 	return upload, nil
 }
 
-// DownloadFileIntoFile downloads an S3 object to the provided *os.File without loading the entire file into memory.
+// DownloadToFile downloads an S3 object to the provided *os.File without loading the entire file into memory.
 // Suitable for large files, as it streams the content directly to disk.
 // The caller is responsible for ensuring the file is open, writable, and closed after use.
 func (ps3 *S3Client) DownloadToFile(ctx context.Context, w *os.File, bucket, key string) error {
