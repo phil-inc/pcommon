@@ -14,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	logger "github.com/phil-inc/plog-ng/pkg/core"
 )
 
 type BucketLists struct {
@@ -121,11 +120,10 @@ func (ps3 *S3Client) UploadFile(ctx context.Context, bucket string, filename str
 
 	uploader := manager.NewUploader(ps3.Client)
 
-	result, err := uploader.Upload(ctx, input)
+	_, err := uploader.Upload(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload file, %v", err)
 	}
-	logger.Infof("File uploaded to s3: %s", result.Location)
 
 	// Before returning the key, create an s3 key (URI)
 	item := Item{
@@ -146,12 +144,10 @@ func (ps3 *S3Client) DownloadFile(ctx context.Context, bucket, filename string) 
 	downloader := manager.NewDownloader(ps3.Client)
 	buffer := &manager.WriteAtBuffer{}
 
-	numBytes, err := downloader.Download(ctx, buffer, input)
+	_, err := downloader.Download(ctx, buffer, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download file, %v", err)
 	}
-	logger.Infof("File downloaded (%d bytes): %s\n", numBytes, filename)
-
 	return buffer.Bytes(), nil
 }
 
