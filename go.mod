@@ -5,6 +5,7 @@ go 1.23
 toolchain go1.24.6
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/aws/aws-sdk-go-v2 v1.38.1
 	github.com/aws/aws-sdk-go-v2/config v1.31.3
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.7
@@ -18,6 +19,7 @@ require (
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jlaffaye/ftp v0.0.0-20220310202011-d2c44e311e78
 	github.com/knadh/koanf v1.4.2
+	github.com/lib/pq v1.10.7
 	github.com/narup/gconfig v0.0.0-20220628222950-c7fd71947b03
 	github.com/phil-inc/plog-ng v0.0.0-20220929021148-e9756eede797
 	github.com/pkg/errors v0.9.1
@@ -43,7 +45,6 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gofrs/uuid v4.3.1+incompatible // indirect
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
-	github.com/lib/pq v1.10.7 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
