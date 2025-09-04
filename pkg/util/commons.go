@@ -371,6 +371,11 @@ func IsStage() bool {
 	return Config("app.environment") == "stage"
 }
 
+// IsTest check if application is running in test env
+func IsTest() bool {
+	return Config("app.environment") == "test"
+}
+
 // IsDebugMode check if app is running in debug mode. Does heavy logging
 func IsDebugMode() bool {
 	return gconfig.Gcg.GetBool("app.debugMode")
@@ -974,6 +979,10 @@ func GetPhilLogoURL() string {
 	return fmt.Sprintf("%s/img/insert-card/p-new-log-black.svg", Config("dashboard.server.url"))
 }
 
+func GetPhilRxLogoURL() string {
+	return fmt.Sprintf("%s/img/insert-card/PHILRX_Logo_Black.png", Config("dashboard.server.url"))
+}
+
 func IsGreaterThan(number, value float64) bool {
 	return number > value
 }
@@ -1218,4 +1227,102 @@ func ArePointerValuesEqual(p1, p2 interface{}) bool {
 
 	// Dereference the pointers and compare their values using reflect.DeepEqual
 	return reflect.DeepEqual(v1.Elem().Interface(), v2.Elem().Interface())
+}
+
+// DoesFuzzyMatch determines whether two strings are within a specified Damerau-Levenshtein distance.
+// https://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance
+// Parameters:
+// - source: The original string.
+// - target: The string to compare against.
+// - maxOperations: The maximum number of allowed operations.
+func DoesFuzzyMatch(source, target string, maxOperations int) bool {
+	sl := strings.ToLower(source)
+	tl := strings.ToLower(target)
+
+	// remove whitespaces if there are any
+	sl = strings.ReplaceAll(sl, " ", "")
+	tl = strings.ReplaceAll(tl, " ", "")
+
+	// if either of string is empty, donot proceed
+	if sl == "" || tl == "" {
+		return false
+	}
+
+	// if both matches, donot proceed
+	if sl == tl {
+		return true
+	}
+
+	lenS := len(sl)
+	lenT := len(tl)
+
+	// if strings length difference is greater than max distance, donot proceed
+	if int(math.Abs(float64(lenS-lenT))) > maxOperations {
+		return false
+	}
+
+	dpm := make([][]int, lenS+1)
+	for i := range dpm {
+		dpm[i] = make([]int, lenT+1)
+	}
+
+	for i := 0; i <= lenS; i++ {
+		dpm[i][0] = i
+	}
+	for j := 0; j <= lenT; j++ {
+		dpm[0][j] = j
+	}
+
+	/*
+		* for source phil and target pihl, dpm would look something like this after initialization
+		* dpm =
+			''	p	h	i	l
+		''	0	1	2	3	4
+		p	1	0	0	0	0
+		i	2	0	0	0	0
+		h	3	0	0	0	0
+		l	4	0	0	0	0
+	*/
+
+	for i := 1; i <= lenS; i++ {
+		for j := 1; j <= lenT; j++ {
+			cost := 0
+			if sl[i-1] != tl[j-1] {
+				cost = 1
+			}
+
+			ins := dpm[i][j-1] + 1      // insertion
+			del := dpm[i-1][j] + 1      // deletion
+			sub := dpm[i-1][j-1] + cost // substitution
+
+			dpm[i][j] = min(del, ins, sub)
+
+			// transposition: check if matches by swapping characters in source & target
+			if i > 1 && j > 1 &&
+				sl[i-1] == tl[j-2] &&
+				sl[i-2] == tl[j-1] {
+				dpm[i][j] = min(dpm[i][j], dpm[i-2][j-2]+1)
+			}
+		}
+	}
+
+	/*
+		* for source phil and target pihl, dpm would look something like this after Damerau–Levenshtein distance algorithm
+		* dpm =
+			''	p	h	i	l
+		''	0	1	2	3	4
+		p	1	0	1	2	3
+		i	2	1	1	1	2
+		h	3	2	1	1	2
+		l	4	3	2	2	1
+	*/
+
+	// compare  with final total operations required
+	return dpm[lenS][lenT] <= maxOperations
+}
+
+func SanitizeICDCode(icdCode string) string {
+	sanitized := strings.ReplaceAll(icdCode, "-", "")
+	sanitized = strings.ReplaceAll(sanitized, ".", "")
+	return strings.TrimSpace(sanitized)
 }

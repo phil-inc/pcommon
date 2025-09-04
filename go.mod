@@ -1,22 +1,25 @@
 module github.com/phil-inc/pcommon
 
-go 1.22.0
+go 1.23
 
-toolchain go1.22.10
+toolchain go1.24.6
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.32.8
-	github.com/aws/aws-sdk-go-v2/config v1.28.9
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.50
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.12
-	github.com/aws/aws-sdk-go-v2/service/bedrockagent v1.33.1
-	github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime v1.31.1
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.26.10
+	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/aws/aws-sdk-go-v2 v1.38.1
+	github.com/aws/aws-sdk-go-v2/config v1.31.3
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.7
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.19.1
+	github.com/aws/aws-sdk-go-v2/service/bedrockagent v1.50.0
+	github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime v1.49.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.1
 	github.com/gabriel-vasile/mimetype v1.4.1
 	github.com/golang-jwt/jwt/v4 v4.4.3
+	github.com/golang/mock v1.6.0
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jlaffaye/ftp v0.0.0-20220310202011-d2c44e311e78
 	github.com/knadh/koanf v1.4.2
+	github.com/lib/pq v1.10.7
 	github.com/narup/gconfig v0.0.0-20220628222950-c7fd71947b03
 	github.com/phil-inc/plog-ng v0.0.0-20220929021148-e9756eede797
 	github.com/pkg/errors v0.9.1
@@ -24,17 +27,17 @@ require (
 	github.com/redis/go-redis/v9 v9.5.1
 	github.com/rickar/cal/v2 v2.1.15
 	github.com/spf13/cast v1.6.0
+	go.uber.org/mock v0.5.2
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 	golang.org/x/mod v0.22.0
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.23 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.24.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.33.5 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.4 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.28.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.34.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.38.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cockroachdb/apd v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -42,7 +45,6 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gofrs/uuid v4.3.1+incompatible // indirect
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
-	github.com/lib/pq v1.10.7 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
@@ -54,15 +56,15 @@ require (
 
 require (
 	cloud.google.com/go/compute v1.6.1 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.7 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.27 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.27 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.13.5 // indirect
-	github.com/aws/smithy-go v1.22.1 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.4 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.4 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.8.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.4 // indirect
+	github.com/aws/smithy-go v1.22.5 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.4.0 // indirect

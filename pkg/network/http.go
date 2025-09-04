@@ -2,8 +2,9 @@ package network
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -11,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	_ "github.com/golang/mock/mockgen/model"
 )
 
 type ErrorObject struct {
@@ -19,8 +22,29 @@ type ErrorObject struct {
 	ErrorBody  string
 }
 
-var httpClient = &http.Client{
-	Timeout: time.Second * 60,
+//go:generate mockgen -destination=./mocks/RoundTripper.go -package=mocks net/http RoundTripper
+
+//go:generate mockgen -destination=./mocks/HTTPClient.go -package=mocks github.com/phil-inc/pcommon/pkg/network HTTPClient
+type HTTPClient interface {
+	Get(url string) (resp *http.Response, err error)
+	Post(url, contentType string, body io.Reader) (resp *http.Response, err error)
+	PostForm(url string, data url.Values) (resp *http.Response, err error)
+	Head(url string) (resp *http.Response, err error)
+	Do(req *http.Request) (*http.Response, error)
+	CloseIdleConnections()
+}
+
+var httpClient HTTPClient
+
+func init() {
+	httpClient = &http.Client{
+		Timeout: time.Second * 60,
+	}
+}
+
+// SetHttpClient - used primarily for testing, allows for mock tests
+func SetHttpClient(c HTTPClient) {
+	httpClient = c
 }
 
 // Get - GET request with headers
@@ -56,7 +80,7 @@ func parseGetResponse(res *http.Response, url string) ([]byte, error) {
 		return nil, fmt.Errorf("http response NOT_OK. Status: %s, Code:%d", res.Status, res.StatusCode)
 	}
 
-	return ioutil.ReadAll(res.Body)
+	return io.ReadAll(res.Body)
 }
 
 // PostWithTimeout - POST request with headers and custom timeout value
@@ -96,14 +120,14 @@ func parsePostResponse(res *http.Response, url string) ([]byte, error) {
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		errResp := fmt.Sprintf("Http response NOT_OK. Status: %s, Code:%d", res.Status, res.StatusCode)
 		if res.Body != nil {
-			resp, _ := ioutil.ReadAll(res.Body)
+			resp, _ := io.ReadAll(res.Body)
 			errResp = errResp + fmt.Sprintf(", Body: %s", resp)
 		}
 
-		return nil, fmt.Errorf(errResp)
+		return nil, errors.New(errResp)
 	}
 
-	return ioutil.ReadAll(res.Body)
+	return io.ReadAll(res.Body)
 }
 
 func HTTPGetWithTimeOut(url string, headers map[string]string, timeout int) ([]byte, error) {
@@ -178,7 +202,7 @@ func HTTPDelete(url string, headers map[string]string) ([]byte, error) {
 		return nil, fmt.Errorf("http response NOT_OK. Status: %s, Code:%d", res.Status, res.StatusCode)
 	}
 
-	return ioutil.ReadAll(res.Body)
+	return io.ReadAll(res.Body)
 }
 
 // HTTPFormPost makes a POST data to the given url with headers
@@ -202,10 +226,10 @@ func HTTPFormPost(url string, values url.Values, headers map[string]string) ([]b
 	}
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return ioutil.ReadAll(resp.Body)
+		return io.ReadAll(resp.Body)
 	}
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	return body, fmt.Errorf("http response NOT_OK. Status: %s, Code:%d", resp.Status, resp.StatusCode)
 }
 
@@ -226,7 +250,7 @@ func HTTPDataUpload(url, usrName, password string, body bytes.Buffer, headers ma
 	}
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return ioutil.ReadAll(resp.Body)
+		return io.ReadAll(resp.Body)
 	}
 
 	return nil, fmt.Errorf("http response NOT_OK. Status: %s, Code:%d", resp.Status, resp.StatusCode)
@@ -282,14 +306,14 @@ func doHTTP(url, method, body string, headers map[string]string) ([]byte, error)
 
 		errResp := fmt.Sprintf("Http response NOT_OK. Status: %s, Code:%d", res.Status, res.StatusCode)
 		if res.Body != nil {
-			resp, _ := ioutil.ReadAll(res.Body)
-			errResp = errResp + fmt.Sprintf(", Body: %s", resp)
+			resp, _ := io.ReadAll(res.Body)
+			errResp = errResp + ", Body: " + string(resp)
 		}
 
-		return nil, fmt.Errorf(errResp)
+		return nil, errors.New(errResp)
 	}
 
-	return ioutil.ReadAll(res.Body)
+	return io.ReadAll(res.Body)
 }
 
 // DEPRECATED - DO NOT USE AND WILL BE DELETED
@@ -314,13 +338,13 @@ func httpSend(url, method, body string, headers map[string]string) ([]byte, *Err
 
 		errResp := fmt.Sprintf("Http response NOT_OK. Status: %s, Code:%d", res.Status, res.StatusCode)
 		if res.Body != nil {
-			resp, _ := ioutil.ReadAll(res.Body)
+			resp, _ := io.ReadAll(res.Body)
 			errResp = errResp + fmt.Sprintf(", Body: %s", resp)
 		}
 
 		return nil, &ErrorObject{Status: res.Status, StatusCode: res.StatusCode, ErrorBody: errResp}, fmt.Errorf(errResp)
 	}
-	resp, error := ioutil.ReadAll(res.Body)
+	resp, error := io.ReadAll(res.Body)
 
 	return resp, nil, error
 }
@@ -359,14 +383,14 @@ func HTTPMultipartPost(url string, body, headers map[string]string) ([]byte, err
 
 		errResp := fmt.Sprintf("Http response NOT_OK. Status: %s, Code:%d", res.Status, res.StatusCode)
 		if res.Body != nil {
-			resp, _ := ioutil.ReadAll(res.Body)
+			resp, _ := io.ReadAll(res.Body)
 			errResp = errResp + fmt.Sprintf(", Body: %s", resp)
 		}
 
-		return nil, fmt.Errorf(errResp)
+		return nil, errors.New(errResp)
 	}
 
-	return ioutil.ReadAll(res.Body)
+	return io.ReadAll(res.Body)
 }
 
 // GetStatusCodeFromError return status code for the http header

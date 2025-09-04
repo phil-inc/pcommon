@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -14,7 +15,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	logger "github.com/phil-inc/plog-ng/pkg/core"
 )
 
 type BucketLists struct {
@@ -121,11 +121,10 @@ func (ps3 *S3Client) UploadFile(ctx context.Context, bucket string, filename str
 
 	uploader := manager.NewUploader(ps3.Client)
 
-	result, err := uploader.Upload(ctx, input)
+	_, err := uploader.Upload(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload file, %v", err)
 	}
-	logger.Infof("File uploaded to s3: %s", result.Location)
 
 	// Before returning the key, create an s3 key (URI)
 	item := Item{
@@ -146,12 +145,10 @@ func (ps3 *S3Client) DownloadFile(ctx context.Context, bucket, filename string) 
 	downloader := manager.NewDownloader(ps3.Client)
 	buffer := &manager.WriteAtBuffer{}
 
-	numBytes, err := downloader.Download(ctx, buffer, input)
+	_, err := downloader.Download(ctx, buffer, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download file, %v", err)
 	}
-	logger.Infof("File downloaded (%d bytes): %s\n", numBytes, filename)
-
 	return buffer.Bytes(), nil
 }
 
@@ -195,6 +192,28 @@ func (ps3 *S3Client) UploadFileFromPath(ctx context.Context, bucket, fileName, f
 		return nil, err
 	}
 	return upload, nil
+}
+
+// DownloadToFile downloads an S3 object to the provided *os.File without loading the entire file into memory.
+// Suitable for large files, as it streams the content directly to disk.
+// The caller is responsible for ensuring the file is open, writable, and closed after use.
+func (ps3 *S3Client) DownloadToFile(ctx context.Context, w *os.File, bucket, key string) error {
+	if bucket == "" || key == "" {
+		return errors.New("bucket and key cannot be empty")
+	}
+
+	if w == nil {
+		return errors.New("file is nil")
+	}
+
+	downloader := manager.NewDownloader(ps3.Client)
+
+	_, err := downloader.Download(ctx, w, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+
+	return err
 }
 
 func (ps3 *S3Client) UploadImage(ctx context.Context, fileName string, fileByte []byte, bucket string) (*string, error) {
