@@ -1,4 +1,3 @@
-// internal/pgx_rows_wrapper.go
 package internal
 
 import (
