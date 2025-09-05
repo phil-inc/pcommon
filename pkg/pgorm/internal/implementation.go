@@ -1,13 +1,12 @@
 package internal
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 )
 
-func NewQueryBuilder(DB *sql.DB) *QueryBuilderImpl {
-	return &QueryBuilderImpl{db: DB}
+func NewQueryBuilder(db DBExecutor) *QueryBuilderImpl {
+	return &QueryBuilderImpl{db: db}
 }
 
 func (qb *QueryBuilderImpl) Table(model Model) QueryBuilder {
@@ -75,12 +74,11 @@ func (qb *QueryBuilderImpl) Insert(model interface{}) (Result, error) {
 
 	}
 
-	result, err := qb.db.Exec(query, values...)
+	rowsAffected, err := qb.db.Exec(query, values...)
 	if err != nil {
 		return Result{}, err
 	}
 
-	rowsAffected, _ := result.RowsAffected()
 	return Result{RowsAffected: rowsAffected}, nil
 }
 
@@ -138,12 +136,11 @@ func (qb *QueryBuilderImpl) Update() (Result, error) {
 		return Result{RowsAffected: int64(rowsAffected), Returning: returningResults}, nil
 	}
 
-	result, err := qb.db.Exec(query, args...)
+	rowsAffected, err := qb.db.Exec(query, args...)
 	if err != nil {
 		return Result{}, err
 	}
 
-	rowsAffected, _ := result.RowsAffected()
 	return Result{RowsAffected: rowsAffected}, nil
 }
 
@@ -215,11 +212,9 @@ func (qb *QueryBuilderImpl) Delete() (Result, error) {
 	query := fmt.Sprintf("DELETE FROM %s %s", qb.tableName, qb.where)
 
 	// Execute the query with the `where` arguments
-	result, err := qb.db.Exec(query, qb.whereArgs...)
+	rowsAffected, err := qb.db.Exec(query, qb.whereArgs...)
 	if err != nil {
 		return Result{}, fmt.Errorf("delete operation failed: %w", err)
 	}
-
-	rowsAffected, _ := result.RowsAffected()
 	return Result{RowsAffected: rowsAffected}, nil
 }
