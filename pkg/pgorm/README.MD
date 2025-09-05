@@ -1,10 +1,8 @@
 ## Introduction
 
-pgorm is a lightweight and extensible PostgreSQL ORM for Go. It provides a clean, chainable API for building and executing SQL queries using Go structs. Under the hood, it uses Go's reflection system to map struct fields to table columns, allowing developers to write less boilerplate and interact directly with PostgreSQL in a type-safe and ergonomic way.
+pgorm is a lightweight and extensible PostgreSQL ORM. It provides a clean, chainable API for building and executing SQL queries using Go structs. Under the hood, it uses Go's reflection system to map struct fields to table columns, allowing developers to write less boilerplate and interact directly with PostgreSQL in a type-safe and ergonomic way.
 
 ## Goals
-Clean and fluent query builder
-
 - Struct-to-table mapping via reflection
 - Support for standard SQL operations (Insert, Select, Update, Delete)
 - Support for RETURNING clauses
