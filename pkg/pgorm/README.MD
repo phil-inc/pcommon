@@ -1,13 +1,22 @@
 ## Introduction
 
-goal is to create an easy-to-use, flexible, and extensible ORM that allows developers to interact with PostgreSQL tables through Go structs. The framework will support basic operations like Insert, Update, Update, and Delete while ensuring compatibility with PostgreSQL.
+pgorm is a lightweight and extensible PostgreSQL ORM for Go. It provides a clean, chainable API for building and executing SQL queries using Go structs. Under the hood, it uses Go's reflection system to map struct fields to table columns, allowing developers to write less boilerplate and interact directly with PostgreSQL in a type-safe and ergonomic way.
+
+## Goals
+Clean and fluent query builder
+
+- Struct-to-table mapping via reflection
+- Support for standard SQL operations (Insert, Select, Update, Delete)
+- Support for RETURNING clauses
+- Abstraction over multiple DB drivers (e.g., database/sql, pgx)
+- Mockable interface for testing
 
 ## Key Features
 
-- Use of reflection for automatic table/column mapping.
-- Chaining of functions for a clean, easy-to-read API.
-- Struct tags for column mapping.
-- Simple and clear syntax to interact with the database.
+- Works with *sql.DB, pgx.ConnPool, and mock implementations via the DBExecutor interface.
+- Automatically extracts column names and values from structs using db tags.
+- Clean, chainable query syntax.
+- Plug in mock executors for easy unit testing.
 
 ## Example Usage
 
@@ -39,7 +48,7 @@ func main() {
  }
 
  // Initialize the ORM with the database connection
- qb := pgorm.NewQueryBuilder(db)
+ 	qb := pgorm.NewQueryBuilderFromSQL(db)
 
  // Example: INSERT query
  result, err := qb.Table(User{}).Returning(User{},"id").Insert(User{

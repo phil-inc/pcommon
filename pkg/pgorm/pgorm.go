@@ -4,7 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/jackc/pgx"
-	_ "github.com/lib/pq" // PostgreSQL driver
+	_ "github.com/lib/pq" // PostgreSQL driver, check f this works with pgx
 	"github.com/phil-inc/pcommon/pkg/pgorm/internal"
 )
 
