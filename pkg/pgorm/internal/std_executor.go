@@ -10,6 +10,10 @@ type StdDBExecutor struct {
 	ctx context.Context
 }
 
+type sqlRowWrapper struct {
+	row *sql.Row
+}
+
 func NewStdDBExecutor(db *sql.DB) *StdDBExecutor {
 	return &StdDBExecutor{db: db, ctx: context.Background()}
 }
@@ -23,9 +27,17 @@ func (e *StdDBExecutor) Exec(query string, args ...interface{}) (int64, error) {
 }
 
 func (e *StdDBExecutor) Query(query string, args ...interface{}) (Rows, error) {
-	return e.db.QueryContext(e.ctx, query, args...)
+	rows, err := e.db.QueryContext(e.ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &sqlRowsWrapper{rows: rows}, nil
 }
 
 func (e *StdDBExecutor) QueryRow(query string, args ...interface{}) Row {
-	return e.db.QueryRowContext(e.ctx, query, args...)
+	return &sqlRowWrapper{row: e.db.QueryRowContext(e.ctx, query, args...)}
+}
+
+func (r *sqlRowWrapper) Scan(dest ...interface{}) error {
+	return r.row.Scan(dest...)
 }

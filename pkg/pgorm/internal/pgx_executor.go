@@ -29,8 +29,9 @@ func (e *PgxDBExecutor) Query(query string, args ...interface{}) (Rows, error) {
 		return nil, err
 	}
 	return &pgxRowsWrapper{rows: rows}, nil
+
 }
 
 func (e *PgxDBExecutor) QueryRow(query string, args ...interface{}) Row {
-	return e.pool.QueryRow(query, args...)
+	return &pgxRowWrapper{row: e.pool.QueryRow(query, args...)}
 }

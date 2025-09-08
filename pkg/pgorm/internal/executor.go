@@ -10,6 +10,7 @@ type Rows interface {
 	Columns() ([]string, error)
 	Close() error
 	Err() error
+	Values() ([]interface{}, error)
 }
 
 type DBExecutor interface {

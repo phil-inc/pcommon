@@ -1,28 +1,6 @@
 package internal
 
-import (
-	"database/sql"
-)
-
-type MockDBExecutor struct {
-	DB *sql.DB
-}
-
-func (m *MockDBExecutor) Exec(query string, args ...interface{}) (int64, error) {
-	res, err := m.DB.Exec(query, args...)
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
-}
-
-func (m *MockDBExecutor) Query(query string, args ...interface{}) (Rows, error) {
-	rows, err := m.DB.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	return &sqlRowsWrapper{rows}, nil
-}
+import "database/sql"
 
 type sqlRowsWrapper struct {
 	rows *sql.Rows
@@ -48,6 +26,21 @@ func (r *sqlRowsWrapper) Err() error {
 	return r.rows.Err()
 }
 
-func (m *MockDBExecutor) QueryRow(query string, args ...interface{}) Row {
-	return m.DB.QueryRow(query, args...)
+func (r *sqlRowsWrapper) Values() ([]interface{}, error) {
+	columns, err := r.rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	values := make([]interface{}, len(columns))
+	pointers := make([]interface{}, len(columns))
+	for i := range values {
+		pointers[i] = &values[i]
+	}
+
+	if err := r.rows.Scan(pointers...); err != nil {
+		return nil, err
+	}
+
+	return values, nil
 }

@@ -170,19 +170,14 @@ func (qb *QueryBuilderImpl) Select() (interface{}, error) {
 
 	results := []map[string]interface{}{}
 	for rows.Next() {
+		values, err := rows.Values()
+		if err != nil {
+			return nil, fmt.Errorf("error fetching row values: %w", err)
+		}
+
 		rowMap := make(map[string]interface{})
-		columnValues := make([]interface{}, len(columns))
-		columnPointers := make([]interface{}, len(columns))
-		for i := range columnValues {
-			columnPointers[i] = &columnValues[i]
-		}
-
-		if err := rows.Scan(columnPointers...); err != nil {
-			return nil, fmt.Errorf("error scanning row: %w", err)
-		}
-
 		for i, colName := range columns {
-			rowMap[colName] = columnValues[i]
+			rowMap[colName] = values[i]
 		}
 
 		results = append(results, rowMap)
