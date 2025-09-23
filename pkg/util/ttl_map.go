@@ -58,3 +58,23 @@ func (tm *TTLMap) ReleaseLock(ctx context.Context, key string) error {
 
 	return nil
 }
+
+func (tm *TTLMap) Put(key string, val interface{}, ttl time.Duration) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	tm.data[key] = element{Value: val, Expiration: time.Now().Add(ttl)}
+}
+
+func (tm *TTLMap) Get(key string) (interface{}, bool) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	e, ok := tm.data[key]
+	if !ok {
+		return nil, false
+	}
+	if !e.Expiration.IsZero() && time.Now().After(e.Expiration) {
+		delete(tm.data, key)
+		return nil, false
+	}
+	return e.Value, true
+}
