@@ -518,45 +518,34 @@ func normalizeName(name string) string {
 // IsMatchingLastName returns whether or not the last name provided
 // matches the last name of the full name provided
 func IsMatchingLastName(fullName string, lastName string) bool {
-	// we must handle cases where last name is multiple words
-	if fullName == "" {
-		return false
-	}
-
-	if lastName == "" {
+	if fullName == "" || lastName == "" {
 		return false
 	}
 
 	// if fullName is only one word, return false
-	firstSpaceIdx := strings.Index(fullName, " ")
-	if firstSpaceIdx == -1 {
-		return false
-	}
-
-	// last name must not include the first word in fullName
-	maxLastNameLength := len(fullName) - firstSpaceIdx
-	if len(lastName) > maxLastNameLength {
-		return false
-	}
-
-	minLastName := LastName(fullName)
-	if len(lastName) < len(minLastName) {
+	if strings.Index(fullName, " ") == -1 {
 		return false
 	}
 
 	// Normalize both names for comparison
-	fullNameNoSpace := normalizeName(strings.Join(StripSuffix(fullName), ""))
-	lastNameNoSpace := normalizeName(lastName)
+	fullNameNormalized := normalizeName(strings.Join(StripSuffix(fullName), ""))
+	lastNameNormalized := normalizeName(lastName)
 
-	lenLastName := len(lastNameNoSpace)
-	lenFullName := len(fullNameNoSpace)
-
-	lastNameStartIdx := lenFullName - lenLastName
-	if len(fullNameNoSpace) < lastNameStartIdx || lastNameStartIdx < 0 {
+	// Also normalize last name from fullName
+	minLastNameNormalized := normalizeName(LastName(fullName))
+	if len(lastNameNormalized) < len(minLastNameNormalized) {
 		return false
 	}
 
-	if fullNameNoSpace[lastNameStartIdx:] != lastNameNoSpace {
+	lenLastName := len(lastNameNormalized)
+	lenFullName := len(fullNameNormalized)
+
+	lastNameStartIdx := lenFullName - lenLastName
+	if lastNameStartIdx < 0 || lenFullName < lastNameStartIdx {
+		return false
+	}
+
+	if fullNameNormalized[lastNameStartIdx:] != lastNameNormalized {
 		return false
 	}
 
