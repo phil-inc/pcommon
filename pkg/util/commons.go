@@ -507,6 +507,14 @@ func PartialName(fullName string) string {
 	return fullName
 }
 
+// normalizeName removes spaces, hyphens, apostrophes, and lowercases the string
+func normalizeName(name string) string {
+	// Remove spaces, apostrophes, hyphens, and other punctuation
+	re := regexp.MustCompile(`[^\w]`)
+	normalized := re.ReplaceAllString(name, "")
+	return strings.ToLower(normalized)
+}
+
 // IsMatchingLastName returns whether or not the last name provided
 // matches the last name of the full name provided
 func IsMatchingLastName(fullName string, lastName string) bool {
@@ -536,8 +544,9 @@ func IsMatchingLastName(fullName string, lastName string) bool {
 		return false
 	}
 
-	fullNameNoSpace := strings.Join(StripSuffix(fullName), "")
-	lastNameNoSpace := strings.ToLower(strings.Replace(lastName, " ", "", -1))
+	// Normalize both names for comparison
+	fullNameNoSpace := normalizeName(strings.Join(StripSuffix(fullName), ""))
+	lastNameNoSpace := normalizeName(lastName)
 
 	lenLastName := len(lastNameNoSpace)
 	lenFullName := len(fullNameNoSpace)
