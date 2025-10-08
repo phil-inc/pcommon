@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cast"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"golang.org/x/text/unicode/norm"
 )
 
 ///// Common functions ///////
@@ -509,47 +510,39 @@ func PartialName(fullName string) string {
 
 // normalizeName removes spaces, hyphens, apostrophes, and lowercases the string
 func normalizeName(name string) string {
-	// Remove spaces, apostrophes, hyphens, and other punctuation
-	re := regexp.MustCompile(`[^\w]`)
-	normalized := re.ReplaceAllString(name, "")
-	return strings.ToLower(normalized)
+	name = strings.ToLower(name)
+	// Remove spaces, hyphens, apostrophes
+	name = strings.ReplaceAll(name, " ", "")
+	name = strings.ReplaceAll(name, "-", "")
+	name = strings.ReplaceAll(name, "'", "")
+	// Decompose Unicode characters to remove accents
+	name = norm.NFD.String(name)
+	// Remove accent marks
+	name = strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Mn, r) {
+			return -1
+		}
+		return r
+	}, name)
+	return name
 }
 
 // IsMatchingLastName returns whether or not the last name provided
 // matches the last name of the full name provided
-func IsMatchingLastName(fullName string, lastName string) bool {
+func IsMatchingLastName(fullName, lastName string) bool {
 	if fullName == "" || lastName == "" {
 		return false
 	}
 
-	// if fullName is only one word, return false
-	if strings.Index(fullName, " ") == -1 {
+	// Full name must have at least two words
+	if !strings.Contains(fullName, " ") {
 		return false
 	}
 
-	// Normalize both names for comparison
-	fullNameNormalized := normalizeName(strings.Join(StripSuffix(fullName), ""))
+	fullNameNormalized := normalizeName(fullName)
 	lastNameNormalized := normalizeName(lastName)
 
-	// Also normalize last name from fullName
-	minLastNameNormalized := normalizeName(LastName(fullName))
-	if len(lastNameNormalized) < len(minLastNameNormalized) {
-		return false
-	}
-
-	lenLastName := len(lastNameNormalized)
-	lenFullName := len(fullNameNormalized)
-
-	lastNameStartIdx := lenFullName - lenLastName
-	if lastNameStartIdx < 0 || lenFullName < lastNameStartIdx {
-		return false
-	}
-
-	if fullNameNormalized[lastNameStartIdx:] != lastNameNormalized {
-		return false
-	}
-
-	return true
+	return strings.HasSuffix(fullNameNormalized, lastNameNormalized)
 }
 
 // TrimAndLower trim the input string and also convert to lower case
