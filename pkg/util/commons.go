@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cast"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"golang.org/x/text/unicode/norm"
 )
 
 ///// Common functions ///////
@@ -509,9 +510,22 @@ func PartialName(fullName string) string {
 
 // normalizeName removes spaces, hyphens, apostrophes, and lowercases the string
 func normalizeName(name string) string {
+	// Remove accents
+	t := norm.NFD.String(name)
+	stripped := make([]rune, 0, len(t))
+	for _, r := range t {
+		if unicode.Is(unicode.Mn, r) { // skip marks (accents)
+			continue
+		}
+		stripped = append(stripped, r)
+	}
+
+	// Convert []rune back to string
+	strippedStr := string(stripped)
+
 	// Remove spaces, apostrophes, hyphens, and other punctuation
 	re := regexp.MustCompile(`[^\p{L}\p{N}]`)
-	normalized := re.ReplaceAllString(name, "")
+	normalized := re.ReplaceAllString(strippedStr, "")
 	return strings.ToLower(normalized)
 }
 
