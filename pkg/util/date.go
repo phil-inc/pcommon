@@ -121,7 +121,7 @@ func BusinessHourEndTime(t *time.Time, hour *int) time.Time {
 	if hour != nil {
 		return time.Date(t.Year(), t.Month(), t.Day(), *hour, 0, 0, 0, t.Location())
 	}
-	return time.Date(t.Year(), t.Month(), t.Day(), 18, 0, 0, 0, t.Location())
+	return time.Date(t.Year(), t.Month(), t.Day(), 19, 0, 0, 0, t.Location())
 }
 
 // DayEndTimePST day end time PST
