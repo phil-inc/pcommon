@@ -508,6 +508,41 @@ func PartialName(fullName string) string {
 	return fullName
 }
 
+// HasSpecialChars compares two names and returns true if the first name
+// contains any non-ASCII or accented characters not present in the plain version.
+func HasSpecialChars(name1, name2 string) bool {
+	// Normalize to canonical form
+	n1 := norm.NFC.String(strings.ToLower(name1))
+	n2 := norm.NFC.String(strings.ToLower(name2))
+
+	for _, r := range n1 {
+		// If it's a non-ASCII character, it's special
+		if r > unicode.MaxASCII {
+			return true
+		}
+	}
+
+	// Normalize both names to remove diacritics for comparison
+	plain1 := removeDiacritics(n1)
+	plain2 := removeDiacritics(n2)
+
+	// If plain versions differ, name1 likely had special chars
+	return plain1 != plain2
+}
+
+// removeDiacritics strips diacritical marks (accents) from a string.
+func removeDiacritics(s string) string {
+	t := norm.NFD.String(s) // Decompose into base + diacritics
+	result := make([]rune, 0, len(s))
+	for _, r := range t {
+		if unicode.Is(unicode.Mn, r) { // Mn = nonspacing mark (diacritic)
+			continue
+		}
+		result = append(result, r)
+	}
+	return string(result)
+}
+
 // normalizeName removes spaces, hyphens, apostrophes, and lowercases the string
 func normalizeName(name string) string {
 	// Remove accents
@@ -532,6 +567,51 @@ func normalizeName(name string) string {
 // IsMatchingLastName returns whether or not the last name provided
 // matches the last name of the full name provided
 func IsMatchingLastName(fullName string, lastName string) bool {
+	// we must handle cases where last name is multiple words
+	if fullName == "" {
+		return false
+	}
+
+	if lastName == "" {
+		return false
+	}
+
+	// if fullName is only one word, return false
+	firstSpaceIdx := strings.Index(fullName, " ")
+	if firstSpaceIdx == -1 {
+		return false
+	}
+
+	// last name must not include the first word in fullName
+	maxLastNameLength := len(fullName) - firstSpaceIdx
+	if len(lastName) > maxLastNameLength {
+		return false
+	}
+
+	minLastName := LastName(fullName)
+	if len(lastName) < len(minLastName) {
+		return false
+	}
+
+	fullNameNoSpace := strings.Join(StripSuffix(fullName), "")
+	lastNameNoSpace := strings.ToLower(strings.Replace(lastName, " ", "", -1))
+
+	lenLastName := len(lastNameNoSpace)
+	lenFullName := len(fullNameNoSpace)
+
+	lastNameStartIdx := lenFullName - lenLastName
+	if len(fullNameNoSpace) < lastNameStartIdx || lastNameStartIdx < 0 {
+		return false
+	}
+
+	if fullNameNoSpace[lastNameStartIdx:] != lastNameNoSpace {
+		return false
+	}
+
+	return true
+}
+
+func IsNewMatchingLastName(fullName string, lastName string) bool {
 	if fullName == "" || lastName == "" {
 		return false
 	}
