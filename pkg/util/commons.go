@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cast"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"golang.org/x/text/unicode/norm"
 )
 
 ///// Common functions ///////
@@ -507,6 +508,62 @@ func PartialName(fullName string) string {
 	return fullName
 }
 
+// HasSpecialChars compares two names and returns true if the first name
+// contains any non-ASCII or accented characters not present in the plain version.
+func HasSpecialChars(name1, name2 string) bool {
+	// Normalize to canonical form
+	n1 := norm.NFC.String(strings.ToLower(name1))
+	n2 := norm.NFC.String(strings.ToLower(name2))
+
+	for _, r := range n1 {
+		// If it's a non-ASCII character, it's special
+		if r > unicode.MaxASCII {
+			return true
+		}
+	}
+
+	// Normalize both names to remove diacritics for comparison
+	plain1 := removeDiacritics(n1)
+	plain2 := removeDiacritics(n2)
+
+	// If plain versions differ, name1 likely had special chars
+	return plain1 != plain2
+}
+
+// removeDiacritics strips diacritical marks (accents) from a string.
+func removeDiacritics(s string) string {
+	t := norm.NFD.String(s) // Decompose into base + diacritics
+	result := make([]rune, 0, len(s))
+	for _, r := range t {
+		if unicode.Is(unicode.Mn, r) { // Mn = nonspacing mark (diacritic)
+			continue
+		}
+		result = append(result, r)
+	}
+	return string(result)
+}
+
+// normalizeName removes spaces, hyphens, apostrophes, and lowercases the string
+func normalizeName(name string) string {
+	// Remove accents
+	t := norm.NFD.String(name)
+	stripped := make([]rune, 0, len(t))
+	for _, r := range t {
+		if unicode.Is(unicode.Mn, r) { // skip marks (accents)
+			continue
+		}
+		stripped = append(stripped, r)
+	}
+
+	// Convert []rune back to string
+	strippedStr := string(stripped)
+
+	// Remove spaces, apostrophes, hyphens, and other punctuation
+	re := regexp.MustCompile(`[^\p{L}\p{N}]`)
+	normalized := re.ReplaceAllString(strippedStr, "")
+	return strings.ToLower(normalized)
+}
+
 // IsMatchingLastName returns whether or not the last name provided
 // matches the last name of the full name provided
 func IsMatchingLastName(fullName string, lastName string) bool {
@@ -548,6 +605,41 @@ func IsMatchingLastName(fullName string, lastName string) bool {
 	}
 
 	if fullNameNoSpace[lastNameStartIdx:] != lastNameNoSpace {
+		return false
+	}
+
+	return true
+}
+
+func IsNewMatchingLastName(fullName string, lastName string) bool {
+	if fullName == "" || lastName == "" {
+		return false
+	}
+
+	// if fullName is only one word, return false
+	if strings.Index(fullName, " ") == -1 {
+		return false
+	}
+
+	// Normalize both names for comparison
+	fullNameNormalized := normalizeName(strings.Join(StripSuffix(fullName), ""))
+	lastNameNormalized := normalizeName(lastName)
+
+	// Also normalize last name from fullName
+	minLastNameNormalized := normalizeName(LastName(fullName))
+	if len(lastNameNormalized) < len(minLastNameNormalized) {
+		return false
+	}
+
+	lenLastName := len(lastNameNormalized)
+	lenFullName := len(fullNameNormalized)
+
+	lastNameStartIdx := lenFullName - lenLastName
+	if lastNameStartIdx < 0 || lenFullName < lastNameStartIdx {
+		return false
+	}
+
+	if fullNameNormalized[lastNameStartIdx:] != lastNameNormalized {
 		return false
 	}
 
