@@ -515,6 +515,11 @@ func HasSpecialChars(name1, name2 string) bool {
 	n1 := norm.NFC.String(strings.ToLower(name1))
 	n2 := norm.NFC.String(strings.ToLower(name2))
 
+	// Treat apostrophes, hyphens, and non-ASCII as special
+	if strings.ContainsAny(n1, "'’‘-") {
+		return true
+	}
+
 	for _, r := range n1 {
 		// If it's a non-ASCII character, it's special
 		if r > unicode.MaxASCII {
