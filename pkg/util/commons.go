@@ -362,6 +362,10 @@ func IsDev() bool {
 	return Config("app.environment") == "dev" || Config("app.environment") == "local" || Config("app.environment") == "local-dev"
 }
 
+func IsDevOnly() bool {
+	return Config("app.environment") == "dev"
+}
+
 // IsProd check if application is running in prod env
 func IsProd() bool {
 	return Config("app.environment") == "prod"
