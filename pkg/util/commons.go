@@ -1422,3 +1422,15 @@ func SanitizeICDCode(icdCode string) string {
 	sanitized = strings.ReplaceAll(sanitized, ".", "")
 	return strings.TrimSpace(sanitized)
 }
+
+// IsValidName checks whether the given string is a valid name.
+// A valid name can include:
+//   - Unicode letters (supports international names like "José", "李雷")
+//   - Spaces (' ')
+//   - Periods ('.')
+//   - Hyphens ('-')
+//   - Apostrophes ('\”)
+func IsValidName(s string) bool {
+	re := regexp.MustCompile(`^[\p{L} .'-]+$`)
+	return re.MatchString(s)
+}
