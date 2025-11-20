@@ -27,26 +27,24 @@ func isFound(ndc string, ndcs []string) bool {
 
 // IsNDCMatch compares 2 NDCs and checks if it's same
 func IsMatch(ndc1 string, ndc2 string) bool {
-	ndc1 = Sanitize(ndc1)
-	ndc2 = Sanitize(ndc2)
-
-	if len(ndc2) == 11 {
-		ndc2 = AddDashesTo11Digit(ndc2)
-		ndc2 = ConvertTo10Digits(ndc2)
-	}
-	if len(ndc1) == 11 {
-		ndc1 = AddDashesTo11Digit(ndc1)
-		ndc1 = ConvertTo10Digits(ndc1)
-	}
-
-	if len(ndc2) == 9 {
-		ndc2 = "0" + ndc2
-	}
-	if len(ndc1) == 9 {
-		ndc1 = "0" + ndc1
-	}
+	ndc1 = normalizeForCompare(ndc1)
+	ndc2 = normalizeForCompare(ndc2)
 
 	return ndc1 == ndc2
+}
+
+// IsPartialMatch compares 2 NDCs and checks if they match ignoring the last 2 digits
+func IsPartialMatch(ndc1 string, ndc2 string) bool {
+	ndc1 = normalizeForCompare(ndc1)
+	ndc2 = normalizeForCompare(ndc2)
+
+	// Require same length and at least 2 characters to safely strip suffix.
+	if len(ndc1) != len(ndc2) || len(ndc1) < 2 {
+		return false
+	}
+
+	// Compare everything except the last 2 digits.
+	return ndc1[:len(ndc1)-2] == ndc2[:len(ndc2)-2]
 }
 
 // ValidateForStandard11DigitNDC checks if the NDC is valid 11-digit standard NDC
@@ -192,4 +190,19 @@ func addLeadingZero(part string) string {
 func SanitizeTo11Digit(s string) string {
 	sanitized := Sanitize(s)
 	return AddDashesTo11Digit(sanitized)
+}
+
+func normalizeForCompare(ndc string) string {
+	ndc = Sanitize(ndc)
+
+	if len(ndc) == 11 {
+		ndc = AddDashesTo11Digit(ndc)
+		ndc = ConvertTo10Digits(ndc)
+	}
+
+	if len(ndc) == 9 {
+		ndc = "0" + ndc
+	}
+
+	return ndc
 }
