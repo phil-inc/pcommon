@@ -54,7 +54,7 @@ func IsPartialMatch(ndc1 string, ndc2 string) bool {
 	ndc1 = normalizeForCompare(ndc1)
 	ndc2 = normalizeForCompare(ndc2)
 
-	if len(ndc1) != len(ndc2) || len(ndc1) < 2 {
+	if len(ndc1) != len(ndc2) {
 		return false
 	}
 
