@@ -49,6 +49,19 @@ func IsMatch(ndc1 string, ndc2 string) bool {
 	return ndc1 == ndc2
 }
 
+// IsPartialMatch compares 2 NDCs and checks if they match ignoring the last 2 digits
+func IsPartialMatch(ndc1 string, ndc2 string) bool {
+	ndc1 = normalizeForCompare(ndc1)
+	ndc2 = normalizeForCompare(ndc2)
+
+	if len(ndc1) != len(ndc2) {
+		return false
+	}
+
+	// Compare everything except the last 2 digits.
+	return ndc1[:len(ndc1)-2] == ndc2[:len(ndc2)-2]
+}
+
 // ValidateForStandard11DigitNDC checks if the NDC is valid 11-digit standard NDC
 func ValidateForStandard11Digit(ndc string) bool {
 	if ndc == "" {
@@ -192,4 +205,19 @@ func addLeadingZero(part string) string {
 func SanitizeTo11Digit(s string) string {
 	sanitized := Sanitize(s)
 	return AddDashesTo11Digit(sanitized)
+}
+
+func normalizeForCompare(ndc string) string {
+	ndc = Sanitize(ndc)
+
+	if len(ndc) == 11 {
+		ndc = AddDashesTo11Digit(ndc)
+		ndc = ConvertTo10Digits(ndc)
+	}
+
+	if len(ndc) == 9 {
+		ndc = "0" + ndc
+	}
+
+	return ndc
 }
