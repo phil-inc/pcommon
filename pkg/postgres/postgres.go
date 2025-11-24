@@ -9,7 +9,7 @@ import (
 	logger "github.com/phil-inc/plog-ng/pkg/core"
 )
 
-var pool *pgx.ConnPool
+var pool PgxConnPool
 var config *Config
 
 type Config struct {
@@ -28,6 +28,11 @@ type Rows struct {
 }
 
 var ErrNoRows = pgx.ErrNoRows
+
+// SetPool useful for testing
+func SetPool(p PgxConnPool) {
+	pool = p
+}
 
 func connectPostgres(connConfig *Config) (*pgx.ConnPool, error) {
 	connURL := fmt.Sprintf("%s/%s?sslmode=%s", connConfig.URL, connConfig.DBName, connConfig.SSLMode)
@@ -103,7 +108,7 @@ func SetupPool(connConfig *Config) (*pgx.ConnPool, error) {
 }
 
 // DB - returns the global connection pool
-func DB() *pgx.ConnPool {
+func DB() PgxConnPool {
 	if pool == nil {
 		err := Setup(config)
 		if err != nil {
@@ -137,11 +142,11 @@ func ExecQuery(queryWithNamedParams string, params map[string]interface{}) (*Row
 }
 
 // ExecQueryWithPool - executes query using a specific pool
-func ExecQueryWithPool(pool *pgx.ConnPool, queryWithNamedParams string, params map[string]interface{}) (*Rows, error) {
+func ExecQueryWithPool(pool PgxConnPool, queryWithNamedParams string, params map[string]interface{}) (*Rows, error) {
 	return execQueryWithPool(pool, queryWithNamedParams, params)
 }
 
-func execQueryWithPool(pool *pgx.ConnPool, queryWithNamedParams string, params map[string]interface{}) (*Rows, error) {
+func execQueryWithPool(pool PgxConnPool, queryWithNamedParams string, params map[string]interface{}) (*Rows, error) {
 	paramArr := []interface{}{}
 	count := 1
 
