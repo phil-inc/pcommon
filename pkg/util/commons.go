@@ -1436,12 +1436,12 @@ func IsValidName(s string) bool {
 	return re.MatchString(s)
 }
 
-func InjectEnvToTheDomainStr(domainStr, env string) string {
-	// sanitize env
-	env = strings.ToLower(strings.TrimSpace(env))
+func InjectEnvToTheDomainStr(domainStr string) string {
+	// get env
+	env := Config("app.environment")
 
 	// return domainStr as is for prod env
-	if env == "prod" {
+	if IsProd() {
 		return domainStr
 	}
 
