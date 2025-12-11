@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -1433,4 +1434,42 @@ func SanitizeICDCode(icdCode string) string {
 func IsValidName(s string) bool {
 	re := regexp.MustCompile(`^[\p{L} .'-]+$`)
 	return re.MatchString(s)
+}
+
+func InjectEnvToTheDomainStr(domainStr, env string) string {
+	// sanitize env and return early if env or domainStr is empty
+	env = strings.ToLower(strings.TrimSpace(env))
+	if env == "" || domainStr == "" {
+		return ""
+	}
+
+	// get the url object
+	u, err := url.Parse(domainStr)
+	if err != nil {
+		return ""
+	}
+
+	host := u.Hostname()
+
+	// Rule 1: philrx.com → append /env to the path (e.g. philrx.com/dev)
+	if strings.EqualFold(host, "philrx.com") {
+		// ensure a stable path with env appended
+		if !strings.HasSuffix(u.Path, "/") {
+			u.Path += "/"
+		}
+		u.Path += env
+		return u.String()
+	}
+
+	// Rule 2: For all other domains, insert env as second label
+	// extract domain portion of the url and split into slice
+	// e.g., my.jnjdirect.com -> [my, jnjdirect, com]
+	parts := strings.Split(host, ".")
+	if len(parts) >= 2 {
+		// Insert env after the first label
+		newHost := parts[0] + "." + env + "." + strings.Join(parts[1:], ".")
+		u.Host = newHost
+		return u.String()
+	}
+	return ""
 }
