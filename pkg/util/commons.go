@@ -190,6 +190,18 @@ func FormatValidPhone(phoneNumber string) string {
 	return phoneNumber
 }
 
+// IsValidDomain checks if a given string is a valid domain name
+func IsValidDomain(domainName string) bool {
+	// This regex validates a domain name, ensuring:
+	// - Labels (parts separated by dots) consist of alphanumeric characters or hyphens,
+	//   and cannot start or end with a hyphen.
+	// - Each label can be up to 63 characters long.
+	// - Requires at least one dot (.) to separate labels
+	// - Does not allow leading or trailing dots
+	re := regexp.MustCompile(`^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$`)
+	return re.MatchString(domainName)
+}
+
 // SanitizePhoneNumber cleans up the phone number
 func SanitizePhoneNumber(phoneNumber string) string {
 	if strings.HasPrefix(phoneNumber, "1.") {
