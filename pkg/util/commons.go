@@ -1436,13 +1436,11 @@ func IsValidName(s string) bool {
 	return re.MatchString(s)
 }
 
-func InjectEnvToTheDomainStr(domainStr string) string {
-	// get env
-	env := Config("app.environment")
-
-	// return domainStr as is for prod env
-	if IsProd() {
-		return domainStr
+func InjectEnvToTheDomainStr(domainStr, env string) string {
+	// sanitize env and return early if env or domainStr is empty
+	env = strings.ToLower(strings.TrimSpace(env))
+	if env == "" || domainStr == "" {
+		return ""
 	}
 
 	// get the url object
