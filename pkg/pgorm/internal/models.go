@@ -1,7 +1,5 @@
 package internal
 
-import "database/sql"
-
 type QueryBuilder interface {
 	Table(model Model) QueryBuilder
 	Returning(model interface{}, columns ...string) QueryBuilder
@@ -14,7 +12,7 @@ type QueryBuilder interface {
 }
 
 type QueryBuilderImpl struct {
-	db        *sql.DB
+	db        DBExecutor
 	tableName string
 	columns   []string
 	values    []interface{}
