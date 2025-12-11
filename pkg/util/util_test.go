@@ -11,7 +11,7 @@ func TestInjectEnvToTheDomainStr(t *testing.T) {
 		env       string
 		want      string
 	}{
-		// --- prod should return as-is ---
+		// --- prod inject ---
 		{
 			name:      "prod env returns prod domain",
 			domainStr: "https://my.jnjdirect.com/login",
