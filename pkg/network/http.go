@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -469,6 +470,11 @@ func HTTPRequest[Req any, Res any](ctx context.Context, method, url string, requ
 	var result Res
 	var body io.Reader
 
+	// Validate timeout value
+	if timeoutSeconds <= 0 {
+		return result, fmt.Errorf("[HTTP] timeout must be positive, got %d", timeoutSeconds)
+	}
+
 	// Create a derived context with timeout to ensure consistent timeout behavior
 	// This avoids racing between context deadline and client timeout
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
@@ -477,18 +483,13 @@ func HTTPRequest[Req any, Res any](ctx context.Context, method, url string, requ
 	// Marshal request to JSON if method supports body and request is not the zero value
 	// Methods like GET and HEAD don't have bodies, and methods like DELETE typically don't either
 	if method != http.MethodGet && method != http.MethodHead {
-		// Check if request is the zero value using reflection
-		// If it's a zero value, don't send a body (avoids sending empty JSON objects)
-		var zero Req
-		requestBodyBytes, err := json.Marshal(request)
-		if err != nil {
-			return result, fmt.Errorf("[HTTP] failed to marshal request: %w", err)
-		}
-		zeroBodyBytes, _ := json.Marshal(zero)
-
-		// Only set body if the marshaled request differs from the zero value
-		// This prevents sending "{}" for empty structs
-		if string(requestBodyBytes) != string(zeroBodyBytes) {
+		// Use reflection to check if request is the zero value
+		// This avoids sending empty JSON objects for methods like DELETE
+		if !isZeroValue(request) {
+			requestBodyBytes, err := json.Marshal(request)
+			if err != nil {
+				return result, fmt.Errorf("[HTTP] failed to marshal request: %w", err)
+			}
 			body = bytes.NewReader(requestBodyBytes)
 		}
 	}
@@ -509,17 +510,25 @@ func HTTPRequest[Req any, Res any](ctx context.Context, method, url string, requ
 		req.Header.Add(key, value)
 	}
 
-	// Make HTTP call using default client without timeout (context handles timeout)
+	// Make HTTP call using package httpClient (supports connection pooling and testing)
+	// Context handles timeout, so no need to set client timeout
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return result, fmt.Errorf("[HTTP] request failed for %s %s: %w", method, url, err)
 	}
-	defer resp.Body.Close()
+
+	// Ensure response body is closed even if nil
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
 
 	// Read response body
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return result, fmt.Errorf("[HTTP] failed to read response body from %s %s: %w", method, url, err)
+	var respBody []byte
+	if resp.Body != nil {
+		respBody, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return result, fmt.Errorf("[HTTP] failed to read response body from %s %s: %w", method, url, err)
+		}
 	}
 
 	// Check HTTP status - success codes vary by method
@@ -548,4 +557,36 @@ func HTTPRequest[Req any, Res any](ctx context.Context, method, url string, requ
 // Success codes are in the 2xx range (200-299).
 func isSuccessStatusCode(statusCode int) bool {
 	return statusCode >= 200 && statusCode < 300
+}
+
+// isZeroValue checks if a value is the zero value of its type using reflection.
+// This is more efficient than marshaling and comparing JSON representations.
+// Returns true if the value is a zero value (e.g., empty struct, 0, "", nil).
+func isZeroValue(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+
+	rv := reflect.ValueOf(v)
+
+	// Handle different kinds of types
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Interface:
+		// For pointers and interfaces, check if nil or if the element is zero
+		if rv.IsNil() {
+			return true
+		}
+		// Check the dereferenced value
+		return isZeroValue(rv.Elem().Interface())
+	case reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		// For slices, maps, channels, and functions, check if nil or empty
+		return rv.IsNil() || rv.Len() == 0
+	case reflect.Struct:
+		// For structs, check if all fields are zero values
+		// Use IsZero if available (Go 1.13+)
+		return rv.IsZero()
+	default:
+		// For basic types (int, string, bool, etc.), use IsZero
+		return rv.IsZero()
+	}
 }

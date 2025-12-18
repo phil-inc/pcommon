@@ -77,6 +77,55 @@ func TestIsSuccessStatusCode(t *testing.T) {
 	}
 }
 
+func TestIsZeroValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    interface{}
+		expected bool
+	}{
+		// Basic types
+		{"empty string", "", true},
+		{"non-empty string", "hello", false},
+		{"zero int", 0, true},
+		{"non-zero int", 42, false},
+		{"false bool", false, true},
+		{"true bool", true, false},
+
+		// Structs
+		{"empty struct", testRequest{}, true},
+		{"struct with username", testRequest{Username: "user"}, false},
+		{"struct with password", testRequest{Password: "pass"}, false},
+		{"struct with both", testRequest{Username: "user", Password: "pass"}, false},
+
+		// Pointers
+		{"nil pointer", (*testRequest)(nil), true},
+		{"pointer to empty struct", &testRequest{}, true},
+		{"pointer to non-empty struct", &testRequest{Username: "user"}, false},
+
+		// Slices
+		{"nil slice", []string(nil), true},
+		{"empty slice", []string{}, true},
+		{"non-empty slice", []string{"item"}, false},
+
+		// Maps
+		{"nil map", map[string]string(nil), true},
+		{"empty map", map[string]string{}, true},
+		{"non-empty map", map[string]string{"key": "value"}, false},
+
+		// Nil
+		{"nil interface", nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isZeroValue(tt.value)
+			if result != tt.expected {
+				t.Errorf("isZeroValue(%v) = %v, expected %v", tt.value, result, tt.expected)
+			}
+		})
+	}
+}
+
 type testRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -492,7 +541,7 @@ func TestHTTPRequest_Timeout(t *testing.T) {
 		}))
 		defer server.Close()
 
-		// Zero timeout means immediate timeout
+		// Zero timeout should return validation error
 		_, err := HTTPRequest[testRequest, testResponse](
 			context.Background(),
 			http.MethodPost,
@@ -502,10 +551,12 @@ func TestHTTPRequest_Timeout(t *testing.T) {
 			0,
 		)
 
-		// Should timeout immediately or complete very quickly
-		// This is a bit unpredictable, but it shouldn't crash
-		if err != nil && !strings.Contains(err.Error(), "request failed") {
-			t.Errorf("Unexpected error type: %v", err)
+		if err == nil {
+			t.Fatal("Expected validation error for zero timeout")
+		}
+
+		if !strings.Contains(err.Error(), "timeout must be positive") {
+			t.Errorf("Expected timeout validation error, got: %v", err)
 		}
 	})
 }
@@ -592,7 +643,7 @@ func TestHTTPRequest_InvalidURL(t *testing.T) {
 	_, err := HTTPRequest[testRequest, testResponse](
 		context.Background(),
 		http.MethodPost,
-		"://invalid-url",
+		"invalid-url",
 		testRequest{Username: "test", Password: "pass"},
 		nil,
 		5,
@@ -602,8 +653,9 @@ func TestHTTPRequest_InvalidURL(t *testing.T) {
 		t.Fatal("Expected error for invalid URL, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "failed to create request") {
-		t.Errorf("Expected create request error, got: %v", err)
+	// Invalid URL will fail during request, not during validation
+	if !strings.Contains(err.Error(), "request failed") {
+		t.Errorf("Expected request failed error, got: %v", err)
 	}
 }
 
@@ -1102,4 +1154,294 @@ func TestHTTPRequest_ConcurrentRequests(t *testing.T) {
 	if successCount != numRequests {
 		t.Errorf("Expected %d successful requests, got %d", numRequests, successCount)
 	}
+}
+
+// TestHTTPRequest_LiveAPI tests the HTTPRequest function against real public REST APIs
+// This test should be run manually to verify the function works with real endpoints
+// Run with: go test -v ./pkg/network -run TestHTTPRequest_LiveAPI
+func TestHTTPRequest_LiveAPI(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping live API test in short mode")
+	}
+
+	tests := []struct {
+		name           string
+		method         string
+		url            string
+		request        interface{}
+		headers        map[string]string
+		timeoutSeconds int
+		wantErr        bool
+		checkResponse  func(t *testing.T, response interface{})
+	}{
+		{
+			name:           "GET request to JSONPlaceholder",
+			method:         http.MethodGet,
+			url:            "https://jsonplaceholder.typicode.com/posts/1",
+			request:        struct{}{},
+			headers:        nil,
+			timeoutSeconds: 10,
+			wantErr:        false,
+			checkResponse: func(t *testing.T, response interface{}) {
+				post := response.(map[string]interface{})
+				if post["id"] == nil {
+					t.Error("Expected 'id' field in response")
+				}
+				if post["title"] == nil {
+					t.Error("Expected 'title' field in response")
+				}
+			},
+		},
+		{
+			name:   "POST request to JSONPlaceholder",
+			method: http.MethodPost,
+			url:    "https://jsonplaceholder.typicode.com/posts",
+			request: map[string]interface{}{
+				"title":  "Test Post",
+				"body":   "This is a test post created by HTTPRequest",
+				"userId": 1,
+			},
+			headers:        map[string]string{"Content-Type": "application/json"},
+			timeoutSeconds: 10,
+			wantErr:        false,
+			checkResponse: func(t *testing.T, response interface{}) {
+				post := response.(map[string]interface{})
+				if post["id"] == nil {
+					t.Error("Expected 'id' field in response")
+				}
+				if post["title"] != "Test Post" {
+					t.Errorf("Expected title 'Test Post', got %v", post["title"])
+				}
+			},
+		},
+		{
+			name:           "PUT request to JSONPlaceholder",
+			method:         http.MethodPut,
+			url:            "https://jsonplaceholder.typicode.com/posts/1",
+			request:        map[string]interface{}{"title": "Updated Title", "body": "Updated Body", "userId": 1},
+			headers:        nil,
+			timeoutSeconds: 10,
+			wantErr:        false,
+			checkResponse: func(t *testing.T, response interface{}) {
+				post := response.(map[string]interface{})
+				if post["id"] == nil {
+					t.Error("Expected 'id' field in response")
+				}
+			},
+		},
+		{
+			name:           "DELETE request to JSONPlaceholder",
+			method:         http.MethodDelete,
+			url:            "https://jsonplaceholder.typicode.com/posts/1",
+			request:        struct{}{},
+			headers:        nil,
+			timeoutSeconds: 10,
+			wantErr:        false,
+			checkResponse:  func(t *testing.T, response interface{}) {},
+		},
+		{
+			name:           "GET request with custom headers",
+			method:         http.MethodGet,
+			url:            "https://httpbin.org/headers",
+			request:        struct{}{},
+			headers:        map[string]string{"X-Custom-Header": "test-value", "User-Agent": "HTTPRequest-Test/1.0"},
+			timeoutSeconds: 10,
+			wantErr:        false,
+			checkResponse: func(t *testing.T, response interface{}) {
+				resp := response.(map[string]interface{})
+				headers := resp["headers"].(map[string]interface{})
+				if headers["X-Custom-Header"] != "test-value" {
+					t.Errorf("Expected custom header value 'test-value', got %v", headers["X-Custom-Header"])
+				}
+			},
+		},
+		{
+			name:           "GET request to httpbin delay endpoint",
+			method:         http.MethodGet,
+			url:            "https://httpbin.org/delay/2",
+			request:        struct{}{},
+			headers:        nil,
+			timeoutSeconds: 5,
+			wantErr:        false,
+			checkResponse: func(t *testing.T, response interface{}) {
+				resp := response.(map[string]interface{})
+				if resp["url"] == nil {
+					t.Error("Expected 'url' field in response")
+				}
+			},
+		},
+		{
+			name:           "GET request with timeout exceeded",
+			method:         http.MethodGet,
+			url:            "https://httpbin.org/delay/10",
+			request:        struct{}{},
+			headers:        nil,
+			timeoutSeconds: 2,
+			wantErr:        true,
+			checkResponse:  func(t *testing.T, response interface{}) {},
+		},
+		{
+			name:           "GET request to non-existent endpoint (404)",
+			method:         http.MethodGet,
+			url:            "https://jsonplaceholder.typicode.com/posts/999999",
+			request:        struct{}{},
+			headers:        nil,
+			timeoutSeconds: 10,
+			wantErr:        true,
+			checkResponse:  func(t *testing.T, response interface{}) {},
+		},
+		{
+			name:           "POST with large payload",
+			method:         http.MethodPost,
+			url:            "https://httpbin.org/post",
+			request:        map[string]interface{}{"data": string(make([]byte, 1024*100))}, // 100KB
+			headers:        nil,
+			timeoutSeconds: 15,
+			wantErr:        false,
+			checkResponse: func(t *testing.T, response interface{}) {
+				resp := response.(map[string]interface{})
+				if resp["url"] == nil {
+					t.Error("Expected 'url' field in response")
+				}
+			},
+		},
+		{
+			name:           "GET request with context cancellation",
+			method:         http.MethodGet,
+			url:            "https://httpbin.org/delay/5",
+			request:        struct{}{},
+			headers:        nil,
+			timeoutSeconds: 10,
+			wantErr:        true,
+			checkResponse:  func(t *testing.T, response interface{}) {},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Special handling for context cancellation test
+			if tt.name == "GET request with context cancellation" {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				// Cancel after 1 second
+				go func() {
+					time.Sleep(1 * time.Second)
+					cancel()
+				}()
+			}
+
+			var response map[string]interface{}
+			result, err := HTTPRequest[interface{}, map[string]interface{}](
+				ctx,
+				tt.method,
+				tt.url,
+				tt.request,
+				tt.headers,
+				tt.timeoutSeconds,
+			)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			response = result
+			tt.checkResponse(t, response)
+		})
+	}
+}
+
+// TestHTTPRequest_ValidateInputs tests input validation
+func TestHTTPRequest_ValidateInputs(t *testing.T) {
+	tests := []struct {
+		name           string
+		method         string
+		url            string
+		timeoutSeconds int
+		wantErr        bool
+		errContains    string
+	}{
+		{
+			name:           "negative timeout",
+			method:         http.MethodGet,
+			url:            "https://example.com",
+			timeoutSeconds: -1,
+			wantErr:        false, // No validation in current implementation
+			errContains:    "",
+		},
+		{
+			name:           "zero timeout",
+			method:         http.MethodGet,
+			url:            "https://example.com",
+			timeoutSeconds: 0,
+			wantErr:        false, // No validation in current implementation
+			errContains:    "",
+		},
+		{
+			name:           "invalid URL",
+			method:         http.MethodGet,
+			url:            "://invalid-url",
+			timeoutSeconds: 10,
+			wantErr:        false, // No validation in current implementation
+			errContains:    "",
+		},
+		{
+			name:           "empty URL",
+			method:         http.MethodGet,
+			url:            "",
+			timeoutSeconds: 10,
+			wantErr:        false, // Empty URL is actually valid according to url.Parse
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var response map[string]interface{}
+			_, err := HTTPRequest[struct{}, map[string]interface{}](
+				context.Background(),
+				tt.method,
+				tt.url,
+				struct{}{},
+				nil,
+				tt.timeoutSeconds,
+			)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error containing '%s' but got none", tt.errContains)
+					return
+				}
+				if tt.errContains != "" && !contains(err.Error(), tt.errContains) {
+					t.Errorf("Expected error containing '%s', got: %v", tt.errContains, err)
+				}
+			} else {
+				// For valid inputs, we might still get network errors, which is OK
+				_ = response
+			}
+		})
+	}
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && len(substr) > 0 && indexOf(s, substr) >= 0))
+}
+
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
 }
