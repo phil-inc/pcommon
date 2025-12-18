@@ -422,12 +422,19 @@ func GetStatusCodeFromError(err error) int {
 //   - Res: The type of the response body. Must be JSON-deserializable.
 //
 // Parameters:
-//   - ctx: Context for the request, allowing for cancellation and deadline control
+//   - ctx: Context for the request, allowing for cancellation and deadline control.
+//     If the context already has a deadline shorter than timeoutSeconds, the context's
+//     deadline will take precedence.
 //   - method: HTTP method (GET, POST, PUT, DELETE, etc.)
 //   - url: The target URL for the request
-//   - request: The request body that will be marshaled to JSON (ignored for GET and HEAD)
+//   - request: The request body that will be marshaled to JSON. Note: GET and HEAD methods
+//     never send a body. For other methods, if the request is the zero value of its type
+//     (e.g., empty struct), no body will be sent. This prevents sending empty JSON objects
+//     for methods like DELETE that typically don't have bodies.
 //   - headers: HTTP headers to include in the request (can be nil)
-//   - timeoutSeconds: Request timeout in seconds
+//   - timeoutSeconds: Request timeout in seconds. A derived context with this timeout
+//     will be created, ensuring consistent timeout behavior without racing between
+//     context deadline and client timeout.
 //
 // Returns:
 //   - Res: The parsed response body of type Res
@@ -462,38 +469,48 @@ func HTTPRequest[Req any, Res any](ctx context.Context, method, url string, requ
 	var result Res
 	var body io.Reader
 
-	// Marshal request to JSON if method supports body and request is not nil
-	// Methods like GET typically don't have a body
+	// Create a derived context with timeout to ensure consistent timeout behavior
+	// This avoids racing between context deadline and client timeout
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+	defer cancel()
+
+	// Marshal request to JSON if method supports body and request is not the zero value
+	// Methods like GET and HEAD don't have bodies, and methods like DELETE typically don't either
 	if method != http.MethodGet && method != http.MethodHead {
+		// Check if request is the zero value using reflection
+		// If it's a zero value, don't send a body (avoids sending empty JSON objects)
+		var zero Req
 		requestBodyBytes, err := json.Marshal(request)
 		if err != nil {
 			return result, fmt.Errorf("[HTTP] failed to marshal request: %w", err)
 		}
-		body = bytes.NewReader(requestBodyBytes)
+		zeroBodyBytes, _ := json.Marshal(zero)
+
+		// Only set body if the marshaled request differs from the zero value
+		// This prevents sending "{}" for empty structs
+		if string(requestBodyBytes) != string(zeroBodyBytes) {
+			body = bytes.NewReader(requestBodyBytes)
+		}
 	}
 
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	// Create HTTP request with timeout context
+	req, err := http.NewRequestWithContext(timeoutCtx, method, url, body)
 	if err != nil {
 		return result, fmt.Errorf("[HTTP] failed to create request for %s %s: %w", method, url, err)
 	}
 
 	// Set content type for methods with body
 	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Add("Content-Type", "application/json")
 	}
 
 	// Add custom headers
 	for key, value := range headers {
-		req.Header.Set(key, value)
+		req.Header.Add(key, value)
 	}
 
-	// Make HTTP call with timeout
-	client := &http.Client{
-		Timeout: time.Duration(timeoutSeconds) * time.Second,
-	}
-
-	resp, err := client.Do(req)
+	// Make HTTP call using default client without timeout (context handles timeout)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return result, fmt.Errorf("[HTTP] request failed for %s %s: %w", method, url, err)
 	}
@@ -507,7 +524,13 @@ func HTTPRequest[Req any, Res any](ctx context.Context, method, url string, requ
 
 	// Check HTTP status - success codes vary by method
 	if !isSuccessStatusCode(resp.StatusCode) {
-		return result, fmt.Errorf("[HTTP] request to %s %s returned error status %d: %s", method, url, resp.StatusCode, string(respBody))
+		// Truncate response body in error message to prevent sensitive information disclosure in logs
+		// Maximum 200 characters to balance debugging info with security
+		bodyPreview := string(respBody)
+		if len(bodyPreview) > 200 {
+			bodyPreview = bodyPreview[:200] + "... (truncated)"
+		}
+		return result, fmt.Errorf("[HTTP] request to %s %s returned error status %d: %s", method, url, resp.StatusCode, bodyPreview)
 	}
 
 	// Unmarshal response if body is not empty
