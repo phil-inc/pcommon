@@ -2,6 +2,8 @@ package network
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -409,4 +411,118 @@ func GetStatusCodeFromError(err error) int {
 	}
 
 	return code
+}
+
+// HTTPRequest performs a type-safe HTTP request with generic request and response types.
+// This function provides compile-time type checking for both request and response structures,
+// making it easier to work with strongly-typed APIs.
+//
+// Type Parameters:
+//   - Req: The type of the request body. Must be JSON-serializable.
+//   - Res: The type of the response body. Must be JSON-deserializable.
+//
+// Parameters:
+//   - ctx: Context for the request, allowing for cancellation and deadline control
+//   - method: HTTP method (GET, POST, PUT, DELETE, etc.)
+//   - url: The target URL for the request
+//   - request: The request body that will be marshaled to JSON (ignored for GET and HEAD)
+//   - headers: HTTP headers to include in the request (can be nil)
+//   - timeoutSeconds: Request timeout in seconds
+//
+// Returns:
+//   - Res: The parsed response body of type Res
+//   - error: Any error encountered during the request or response processing
+//
+// Example usage:
+//
+//	type LoginRequest struct {
+//	    Username string `json:"username"`
+//	    Password string `json:"password"`
+//	}
+//
+//	type LoginResponse struct {
+//	    Token string `json:"token"`
+//	    UserID int  `json:"user_id"`
+//	}
+//
+//	headers := map[string]string{
+//	    "Authorization": "Bearer token123",
+//	    "X-Custom-Header": "value",
+//	}
+//
+//	resp, err := HTTPRequest[LoginRequest, LoginResponse](
+//	    context.Background(),
+//	    http.MethodPost,
+//	    "https://api.example.com/login",
+//	    LoginRequest{Username: "user", Password: "pass"},
+//	    headers,
+//	    30,
+//	)
+func HTTPRequest[Req any, Res any](ctx context.Context, method, url string, request Req, headers map[string]string, timeoutSeconds int) (Res, error) {
+	var result Res
+	var body io.Reader
+
+	// Marshal request to JSON if method supports body and request is not nil
+	// Methods like GET typically don't have a body
+	if method != http.MethodGet && method != http.MethodHead {
+		requestBodyBytes, err := json.Marshal(request)
+		if err != nil {
+			return result, fmt.Errorf("[HTTP] failed to marshal request: %w", err)
+		}
+		body = bytes.NewReader(requestBodyBytes)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return result, fmt.Errorf("[HTTP] failed to create request for %s %s: %w", method, url, err)
+	}
+
+	// Set content type for methods with body
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// Add custom headers
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	// Make HTTP call with timeout
+	client := &http.Client{
+		Timeout: time.Duration(timeoutSeconds) * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return result, fmt.Errorf("[HTTP] request failed for %s %s: %w", method, url, err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return result, fmt.Errorf("[HTTP] failed to read response body from %s %s: %w", method, url, err)
+	}
+
+	// Check HTTP status - success codes vary by method
+	if !isSuccessStatusCode(resp.StatusCode) {
+		return result, fmt.Errorf("[HTTP] request to %s %s returned error status %d: %s", method, url, resp.StatusCode, string(respBody))
+	}
+
+	// Unmarshal response if body is not empty
+	if len(respBody) > 0 {
+		err = json.Unmarshal(respBody, &result)
+		if err != nil {
+			return result, fmt.Errorf("[HTTP] failed to parse response from %s %s: %w", method, url, err)
+		}
+	}
+
+	return result, nil
+}
+
+// isSuccessStatusCode checks if the HTTP status code represents a successful response.
+// Success codes are in the 2xx range (200-299).
+func isSuccessStatusCode(statusCode int) bool {
+	return statusCode >= 200 && statusCode < 300
 }
