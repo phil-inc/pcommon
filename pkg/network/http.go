@@ -2,12 +2,15 @@ package network
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -409,4 +412,181 @@ func GetStatusCodeFromError(err error) int {
 	}
 
 	return code
+}
+
+// HTTPRequest performs a type-safe HTTP request with generic request and response types.
+// This function provides compile-time type checking for both request and response structures,
+// making it easier to work with strongly-typed APIs.
+//
+// Type Parameters:
+//   - Req: The type of the request body. Must be JSON-serializable.
+//   - Res: The type of the response body. Must be JSON-deserializable.
+//
+// Parameters:
+//   - ctx: Context for the request, allowing for cancellation and deadline control.
+//     If the context already has a deadline shorter than timeoutSeconds, the context's
+//     deadline will take precedence.
+//   - method: HTTP method (GET, POST, PUT, DELETE, etc.)
+//   - url: The target URL for the request
+//   - request: The request body that will be marshaled to JSON. Note: GET and HEAD methods
+//     never send a body. For other methods, if the request is the zero value of its type
+//     (e.g., empty struct), no body will be sent. This prevents sending empty JSON objects
+//     for methods like DELETE that typically don't have bodies.
+//   - headers: HTTP headers to include in the request (can be nil)
+//   - timeoutSeconds: Request timeout in seconds. A derived context with this timeout
+//     will be created, ensuring consistent timeout behavior without racing between
+//     context deadline and client timeout.
+//
+// Returns:
+//   - Res: The parsed response body of type Res
+//   - error: Any error encountered during the request or response processing
+//
+// Example usage:
+//
+//	type LoginRequest struct {
+//	    Username string `json:"username"`
+//	    Password string `json:"password"`
+//	}
+//
+//	type LoginResponse struct {
+//	    Token string `json:"token"`
+//	    UserID int  `json:"user_id"`
+//	}
+//
+//	headers := map[string]string{
+//	    "Authorization": "Bearer token123",
+//	    "X-Custom-Header": "value",
+//	}
+//
+//	resp, err := HTTPRequest[LoginRequest, LoginResponse](
+//	    context.Background(),
+//	    http.MethodPost,
+//	    "https://api.example.com/login",
+//	    LoginRequest{Username: "user", Password: "pass"},
+//	    headers,
+//	    30,
+//	)
+func HTTPRequest[Req any, Res any](ctx context.Context, method, url string, request Req, headers map[string]string, timeoutSeconds int) (Res, error) {
+	var result Res
+	var body io.Reader
+
+	// Validate timeout value
+	if timeoutSeconds <= 0 {
+		return result, fmt.Errorf("[HTTP] timeout must be positive, got %d", timeoutSeconds)
+	}
+
+	// Create a derived context with timeout to ensure consistent timeout behavior
+	// This avoids racing between context deadline and client timeout
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+	defer cancel()
+
+	// Marshal request to JSON if method supports body and request is not the zero value
+	// Methods like GET and HEAD don't have bodies, and methods like DELETE typically don't either
+	if method != http.MethodGet && method != http.MethodHead {
+		// Use reflection to check if request is the zero value
+		// This avoids sending empty JSON objects for methods like DELETE
+		if !isZeroValue(request) {
+			requestBodyBytes, err := json.Marshal(request)
+			if err != nil {
+				return result, fmt.Errorf("[HTTP] failed to marshal request: %w", err)
+			}
+			body = bytes.NewReader(requestBodyBytes)
+		}
+	}
+
+	// Create HTTP request with timeout context
+	req, err := http.NewRequestWithContext(timeoutCtx, method, url, body)
+	if err != nil {
+		return result, fmt.Errorf("[HTTP] failed to create request for %s %s: %w", method, url, err)
+	}
+
+	// Set content type for methods with body
+	if body != nil {
+		req.Header.Add("Content-Type", "application/json")
+	}
+
+	// Add custom headers
+	for key, value := range headers {
+		req.Header.Add(key, value)
+	}
+
+	// Make HTTP call using package httpClient (supports connection pooling and testing)
+	// Context handles timeout, so no need to set client timeout
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return result, fmt.Errorf("[HTTP] request failed for %s %s: %w", method, url, err)
+	}
+
+	// Ensure response body is closed even if nil
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	// Read response body
+	var respBody []byte
+	if resp.Body != nil {
+		respBody, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return result, fmt.Errorf("[HTTP] failed to read response body from %s %s: %w", method, url, err)
+		}
+	}
+
+	// Check HTTP status - success codes vary by method
+	if !isSuccessStatusCode(resp.StatusCode) {
+		// Truncate response body in error message to prevent sensitive information disclosure in logs
+		// Maximum 200 characters to balance debugging info with security
+		bodyPreview := string(respBody)
+		if len(bodyPreview) > 200 {
+			bodyPreview = bodyPreview[:200] + "... (truncated)"
+		}
+		return result, fmt.Errorf("[HTTP] request to %s %s returned error status %d: %s", method, url, resp.StatusCode, bodyPreview)
+	}
+
+	// Unmarshal response if body is not empty
+	if len(respBody) > 0 {
+		err = json.Unmarshal(respBody, &result)
+		if err != nil {
+			return result, fmt.Errorf("[HTTP] failed to parse response from %s %s: %w", method, url, err)
+		}
+	}
+
+	return result, nil
+}
+
+// isSuccessStatusCode checks if the HTTP status code represents a successful response.
+// Success codes are in the 2xx range (200-299).
+func isSuccessStatusCode(statusCode int) bool {
+	return statusCode >= 200 && statusCode < 300
+}
+
+// isZeroValue checks if a value is the zero value of its type using reflection.
+// This is more efficient than marshaling and comparing JSON representations.
+// Returns true if the value is a zero value (e.g., empty struct, 0, "", nil).
+func isZeroValue(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+
+	rv := reflect.ValueOf(v)
+
+	// Handle different kinds of types
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Interface:
+		// For pointers and interfaces, check if nil or if the element is zero
+		if rv.IsNil() {
+			return true
+		}
+		// Check the dereferenced value
+		return isZeroValue(rv.Elem().Interface())
+	case reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		// For slices, maps, channels, and functions, check if nil or empty
+		return rv.IsNil() || rv.Len() == 0
+	case reflect.Struct:
+		// For structs, check if all fields are zero values
+		// Use IsZero if available (Go 1.13+)
+		return rv.IsZero()
+	default:
+		// For basic types (int, string, bool, etc.), use IsZero
+		return rv.IsZero()
+	}
 }
