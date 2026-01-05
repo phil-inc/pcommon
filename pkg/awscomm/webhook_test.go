@@ -125,7 +125,7 @@ func TestParseWebhookPayload(t *testing.T) {
 			"order_number": "1111-1111-1111",
 			"phone":        "+1234567890",
 		},
-		Metadata: map[string]interface{}{
+		Metadata: map[string]string{
 			"request_id": "abc123",
 		},
 		Type:         "internal",
@@ -162,17 +162,20 @@ func TestGenerateWebhookPayload(t *testing.T) {
 	payload := map[string]interface{}{
 		"order_number": "1111-1111-1111",
 	}
-	metadata := map[string]interface{}{
+	metadata := map[string]string{
 		"request_id": "abc123",
 	}
 
-	payloadJSON, signature, err := GenerateWebhookPayload(
-		payload,
-		metadata,
-		"internal",
-		"sms",
-		"QUEUED",
-		"",
+	body := WebhookPayload{
+		Payload:      payload,
+		Metadata:     metadata,
+		Type:         "internal",
+		CommType:     "sms",
+		Status:       "QUEUED",
+		FailedReason: "",
+	}
+
+	payloadJSON, signature, err := GenerateWebhookPayload(body,
 		secret,
 	)
 

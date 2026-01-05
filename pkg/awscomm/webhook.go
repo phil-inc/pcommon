@@ -8,12 +8,13 @@ import (
 )
 
 type WebhookPayload struct {
-	Payload      interface{} `json:"payload"`
-	Metadata     interface{} `json:"metadata"`
-	Type         string      `json:"type"`         // "internal" or "external"
-	CommType     string      `json:"commType"`     // e.g., "sms", "email", "fax", "voice_mail"
-	Status       string      `json:"status"`       // e.g., "QUEUED", "FAILED"
-	FailedReason string      `json:"failedReason"` // Error message if failed
+	Payload       map[string]any    `json:"payload"`
+	Metadata      map[string]string `json:"metadata"`
+	Type          string            `json:"type"`         // "internal" or "external"
+	CommType      string            `json:"commType"`     // e.g., "sms", "email", "fax", "voice_mail"
+	Status        string            `json:"status"`       // e.g., "QUEUED", "FAILED"
+	FailedReason  string            `json:"failedReason"` // Error message if failed
+	CommRequestId string            `json:"commRequestId"`
 }
 
 // GenerateHMACSignature generates HMAC SHA256 signature for webhook authentication
@@ -69,15 +70,7 @@ func ParseWebhookPayload(payloadBytes []byte, signature string, secret string) (
 
 // GenerateWebhookPayload generates a webhook payload JSON string with signature
 // This is useful for testing or when you need to generate webhook calls
-func GenerateWebhookPayload(payload, metadata interface{}, webhookType, commType, status, failedReason, secret string) (payloadJSON, signature string, err error) {
-	body := WebhookPayload{
-		Payload:      payload,
-		Metadata:     metadata,
-		Type:         webhookType,
-		CommType:     commType,
-		Status:       status,
-		FailedReason: failedReason,
-	}
+func GenerateWebhookPayload(body WebhookPayload, secret string) (payloadJSON, signature string, err error) {
 
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
