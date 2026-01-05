@@ -23,3 +23,8 @@ const (
 	COMM_TYPE_VOICE_MAIL = "voice_mail"
 	COMM_TYPE_FAX        = "fax"
 )
+
+const (
+	SMS_FROM_TYPE_LONG_CODE  = "long_code"
+	SMS_FROM_TYPE_SHORT_CODE = "short_code"
+)

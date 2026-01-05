@@ -39,7 +39,7 @@ func (c *Client) SendSMS(ctx context.Context, request *SMSRequest, queryParams m
 		return nil, NewError("message is required")
 	}
 
-	if !slices.Contains([]string{"short_code", "long_code", ""}, request.Payload.FromType) {
+	if !slices.Contains([]string{SMS_FROM_TYPE_LONG_CODE, SMS_FROM_TYPE_SHORT_CODE, ""}, request.Payload.FromType) {
 		return nil, NewError(
 			"invalid FromType; accepted values: `short_code`, `long_code`, or empty",
 		)
