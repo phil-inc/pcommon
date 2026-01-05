@@ -1,0 +1,25 @@
+package awscomm
+
+const (
+	STATUS_QUEUED             = "QUEUED"
+	STATUS_WAITING            = "WAITING"
+	STATUS_RETRY_DELAY        = "RETRY_DELAY"
+	STATUS_PROCESSING         = "PROCESSING"
+	STATUS_PRIMARY_SENT       = "PRIMARY_SENT"
+	STATUS_PRIMARY_FAILED     = "PRIMARY_FAILED"
+	STATUS_SECONDARY_SENT     = "SECONDARY_SENT"
+	STATUS_DUPLICATE_DETECTED = "DUPLICATE_DETECTED"
+	STATUS_FAILED             = "FAILED"
+)
+
+const (
+	STATUS_TYPE_INTERNAL = "internal"
+	STATUS_TYPE_EXTERNAL = "external"
+)
+
+const (
+	COMM_TYPE_SMS        = "sms"
+	COMM_TYPE_EMAIL      = "email"
+	COMM_TYPE_VOICE_MAIL = "voice_mail"
+	COMM_TYPE_FAX        = "fax"
+)
