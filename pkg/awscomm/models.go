@@ -8,6 +8,7 @@ type SMSRequest struct {
 type SMSPayload struct {
 	ToPhoneNumber string `json:"to_phone_number"`
 	Message       string `json:"message"`
+	FromType      string `json:"from_type"`
 }
 
 type VoiceMailRequest struct {

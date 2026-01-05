@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 
 	"github.com/phil-inc/pcommon/pkg/network"
 )
@@ -36,6 +37,12 @@ func (c *Client) SendSMS(ctx context.Context, request *SMSRequest, queryParams m
 
 	if request.Payload.Message == "" {
 		return nil, NewError("message is required")
+	}
+
+	if !slices.Contains([]string{"short_code", "long_code", ""}, request.Payload.FromType) {
+		return nil, NewError(
+			"invalid FromType; accepted values: `short_code`, `long_code`, or empty",
+		)
 	}
 
 	url := c.buildURL("/send/sms", queryParams)
