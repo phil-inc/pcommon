@@ -1,8 +1,9 @@
 package awscomm
 
 type SMSRequest struct {
-	CallbackURL string     `json:"callback_url"`
-	Payload     SMSPayload `json:"payload"`
+	CallbackURL            string     `json:"callback_url"`
+	Payload                SMSPayload `json:"payload"`
+	SkipDuplicateDetection bool       `json:"skip_duplicate_detection"`
 }
 
 type SMSPayload struct {
@@ -12,8 +13,9 @@ type SMSPayload struct {
 }
 
 type VoiceMailRequest struct {
-	CallbackURL string           `json:"callback_url"`
-	Payload     VoiceMailPayload `json:"payload"`
+	CallbackURL            string           `json:"callback_url"`
+	Payload                VoiceMailPayload `json:"payload"`
+	SkipDuplicateDetection bool             `json:"skip_duplicate_detection"`
 }
 
 type VoiceMailPayload struct {
@@ -33,8 +35,9 @@ type EmailAttachment struct {
 }
 
 type EmailRequest struct {
-	CallbackURL string       `json:"callback_url"`
-	Payload     EmailPayload `json:"payload"`
+	CallbackURL            string       `json:"callback_url"`
+	Payload                EmailPayload `json:"payload"`
+	SkipDuplicateDetection bool         `json:"skip_duplicate_detection"`
 }
 
 type EmailPayload struct {
@@ -53,8 +56,9 @@ type EmailPayload struct {
 }
 
 type FaxRequest struct {
-	CallbackURL string     `json:"callback_url"`
-	Payload     FaxPayload `json:"payload"`
+	CallbackURL            string     `json:"callback_url"`
+	Payload                FaxPayload `json:"payload"`
+	SkipDuplicateDetection bool       `json:"skip_duplicate_detection"`
 }
 
 type FaxPayload struct {
