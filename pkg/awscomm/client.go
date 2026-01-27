@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"slices"
 
 	"github.com/phil-inc/pcommon/pkg/network"
@@ -30,7 +32,7 @@ func NewClient(baseURL string, apiKey string) *Client {
 	}
 }
 
-func (c *Client) SendSMS(ctx context.Context, request *SMSRequest, queryParams map[string]string) (*Response, error) {
+func (c *Client) SendSMS(ctx context.Context, request *SMSRequest) (*Response, error) {
 	if request.Payload.ToPhoneNumber == "" {
 		return nil, NewError("to_phone_number is required")
 	}
@@ -45,11 +47,14 @@ func (c *Client) SendSMS(ctx context.Context, request *SMSRequest, queryParams m
 		)
 	}
 
-	url := c.buildURL("/send/sms", queryParams)
+	url, err := c.buildURL("/send/sms")
+	if err != nil {
+		return nil, err
+	}
 	return c.sendRequest(ctx, url, request)
 }
 
-func (c *Client) SendVoiceMail(ctx context.Context, request *VoiceMailRequest, queryParams map[string]string) (*Response, error) {
+func (c *Client) SendVoiceMail(ctx context.Context, request *VoiceMailRequest) (*Response, error) {
 	if request.Payload.ToPhoneNumber == "" {
 		return nil, NewError("to_phone_number is required")
 	}
@@ -58,11 +63,14 @@ func (c *Client) SendVoiceMail(ctx context.Context, request *VoiceMailRequest, q
 		return nil, NewError("message is required")
 	}
 
-	url := c.buildURL("/send/voice_mail", queryParams)
+	url, err := c.buildURL("/send/voice_mail")
+	if err != nil {
+		return nil, err
+	}
 	return c.sendRequest(ctx, url, request)
 }
 
-func (c *Client) SendEmail(ctx context.Context, request *EmailRequest, queryParams map[string]string) (*Response, error) {
+func (c *Client) SendEmail(ctx context.Context, request *EmailRequest) (*Response, error) {
 	if len(request.Payload.To) == 0 {
 		return nil, NewError("at least one recipient is required")
 	}
@@ -75,11 +83,14 @@ func (c *Client) SendEmail(ctx context.Context, request *EmailRequest, queryPara
 		return nil, NewError("either text or html content is required")
 	}
 
-	url := c.buildURL("/send/email", queryParams)
+	url, err := c.buildURL("/send/email")
+	if err != nil {
+		return nil, err
+	}
 	return c.sendRequest(ctx, url, request)
 }
 
-func (c *Client) SendFax(ctx context.Context, request *FaxRequest, queryParams map[string]string) (*Response, error) {
+func (c *Client) SendFax(ctx context.Context, request *FaxRequest) (*Response, error) {
 	if request.Payload.ToFaxNumber == "" {
 		return nil, NewError("to_fax_number is required")
 	}
@@ -88,7 +99,10 @@ func (c *Client) SendFax(ctx context.Context, request *FaxRequest, queryParams m
 		return nil, NewError("FileURL or StringData is required")
 	}
 
-	url := c.buildURL("/send/fax", queryParams)
+	url, err := c.buildURL("/send/fax")
+	if err != nil {
+		return nil, err
+	}
 	return c.sendRequest(ctx, url, request)
 }
 
@@ -97,7 +111,7 @@ func (c *Client) SendFax(ctx context.Context, request *FaxRequest, queryParams m
 // It uploads the content to S3 via presigned URL and then sends the fax
 // WARNING: This function loads the entire file content into memory. For large files,
 // this may consume significant memory. Maximum file size is 20 MB.
-func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbackURL string, contentBytes []byte, queryParams map[string]string) (*Response, error) {
+func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbackURL string, contentBytes []byte) (*Response, error) {
 	if toFaxNumber == "" {
 		return nil, NewError("to_fax_number is required")
 	}
@@ -143,7 +157,7 @@ func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbac
 		},
 	}
 
-	return c.SendFax(ctx, faxRequest, queryParams)
+	return c.SendFax(ctx, faxRequest)
 }
 
 // SendFaxByFileName sends a fax using a file from the local filesystem
@@ -151,7 +165,7 @@ func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbac
 // It reads the file, uploads it to S3 via presigned URL, and then sends the fax
 // WARNING: This function loads the entire file into memory (not chunked/streamed).
 // For large files, this may consume significant memory. Maximum file size is 20 MB.
-func (c *Client) SendFaxByFileName(ctx context.Context, toFaxNumber, callbackURL, fileName string, queryParams map[string]string) (*Response, error) {
+func (c *Client) SendFaxByFileName(ctx context.Context, toFaxNumber, callbackURL, fileName string) (*Response, error) {
 	if toFaxNumber == "" {
 		return nil, NewError("to_fax_number is required")
 	}
@@ -165,7 +179,7 @@ func (c *Client) SendFaxByFileName(ctx context.Context, toFaxNumber, callbackURL
 		return nil, WrapError(err, "failed to read file")
 	}
 
-	return c.SendFaxByContentBytes(ctx, toFaxNumber, callbackURL, contentBytes, queryParams)
+	return c.SendFaxByContentBytes(ctx, toFaxNumber, callbackURL, contentBytes)
 }
 
 func (c *Client) GetPresignedURL(ctx context.Context, fileExtension, contentType string) (*PresignedURLResponse, error) {
@@ -199,21 +213,14 @@ func (c *Client) GetPresignedURL(ctx context.Context, fileExtension, contentType
 	return &response, nil
 }
 
-// buildURL constructs a URL with query parameters from a map
-func (c *Client) buildURL(path string, queryParams map[string]string) string {
-	url := c.baseURL + path
-	if len(queryParams) > 0 {
-		url += "?"
-		first := true
-		for key, value := range queryParams {
-			if !first {
-				url += "&"
-			}
-			url += fmt.Sprintf("%s=%s", key, value)
-			first = false
-		}
+func (c *Client) buildURL(p string) (string, error) {
+	base, err := url.Parse(c.baseURL)
+	if err != nil {
+		return "", err
 	}
-	return url
+
+	base.Path = path.Join(base.Path, p)
+	return base.String(), nil
 }
 
 func (c *Client) sendRequest(ctx context.Context, url string, payload interface{}) (*Response, error) {

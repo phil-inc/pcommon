@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/phil-inc/pcommon/pkg/awscomm"
@@ -43,8 +44,6 @@ func testSms(ctx context.Context, ac *awscomm.Client) {
 			ToPhoneNumber: toPhoneNumber,
 			Message:       message,
 		},
-	}, map[string]string{
-		"orderNumber": "1234-1234-1234",
 	})
 	if err != nil {
 		panic(err.Error())
@@ -59,8 +58,9 @@ func testVoiceMail(ctx context.Context, ac *awscomm.Client) {
 			ToPhoneNumber: toPhoneNumber,
 			Message:       message,
 		},
-	}, map[string]string{
-		"orderNumber": "1234-1234-1234",
+		Metadata: map[string]any{
+			"orderNumber": "1234-1234-1234",
+		},
 	})
 	if err != nil {
 		panic(err.Error())
@@ -81,8 +81,6 @@ func testEmail(ctx context.Context, ac *awscomm.Client) {
 			Subject: "Test SDK subject",
 			Text:    message,
 		},
-	}, map[string]string{
-		"orderNumber": "1234-1234-1234",
 	})
 	if err != nil {
 		panic(err.Error())
@@ -97,8 +95,6 @@ func testFax(ctx context.Context, ac *awscomm.Client) {
 			StringData:     faxHtml,
 			StringDataType: "html",
 		},
-	}, map[string]string{
-		"orderNumber": "1234-1234-1234",
 	})
 	if err != nil {
 		panic(err.Error())
@@ -107,9 +103,7 @@ func testFax(ctx context.Context, ac *awscomm.Client) {
 }
 
 func testFaxV2(ctx context.Context, ac *awscomm.Client) {
-	smsResp, err := ac.SendFaxByContentBytes(ctx, toPhoneNumber, "", stringToPDFBytes(message), map[string]string{
-		"orderNumber": "1234-1234-1234",
-	})
+	smsResp, err := ac.SendFaxByContentBytes(ctx, toPhoneNumber, "", stringToPDFBytes(message))
 	if err != nil {
 		panic(err.Error())
 	}

@@ -53,7 +53,7 @@ func TestSendSMS_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.SendSMS(ctx, tt.request, nil)
+			_, err := client.SendSMS(ctx, tt.request)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -98,7 +98,7 @@ func TestSendVoiceMail_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.SendVoiceMail(ctx, tt.request, nil)
+			_, err := client.SendVoiceMail(ctx, tt.request)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -162,7 +162,7 @@ func TestSendEmail_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.SendEmail(ctx, tt.request, nil)
+			_, err := client.SendEmail(ctx, tt.request)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -200,6 +200,9 @@ func TestSendFax_ValidationErrors(t *testing.T) {
 					ToFaxNumber: "+1234567890",
 					FileURL:     "",
 				},
+				Metadata: map[string]any{
+					"order_number": "1234-1234-1234",
+				},
 			},
 			expectError: true,
 		},
@@ -207,7 +210,7 @@ func TestSendFax_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.SendFax(ctx, tt.request, nil)
+			_, err := client.SendFax(ctx, tt.request)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
