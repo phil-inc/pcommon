@@ -44,3 +44,36 @@ func (rc *RedisClient) ReleaseLock(ctx context.Context, key string) error {
 	}
 	return nil
 }
+
+// Get retrieves the value for the given key
+func (rc *RedisClient) Get(ctx context.Context, key string) (string, error) {
+	result, err := rc.Client.Get(ctx, key).Result()
+	if err != nil {
+		return "", err
+	}
+	return result, nil
+}
+
+// Set sets the value for the given key without expiration
+func (rc *RedisClient) Set(ctx context.Context, key string, value string) error {
+	return rc.Client.Set(ctx, key, value, 0).Err()
+}
+
+// Delete removes the key from Redis
+func (rc *RedisClient) Delete(ctx context.Context, key string) error {
+	return rc.Client.Del(ctx, key).Err()
+}
+
+// Exists checks if the key exists in Redis
+func (rc *RedisClient) Exists(ctx context.Context, key string) (bool, error) {
+	result, err := rc.Client.Exists(ctx, key).Result()
+	if err != nil {
+		return false, err
+	}
+	return result > 0, nil
+}
+
+// SetWithExpiration sets the value for the given key with expiration
+func (rc *RedisClient) SetWithExpiration(ctx context.Context, key string, value string, expiration time.Duration) error {
+	return rc.Client.Set(ctx, key, value, expiration).Err()
+}
