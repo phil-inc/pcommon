@@ -55,6 +55,7 @@ func TestReplacePlaceholders(t *testing.T) {
 
 func TestInsert(t *testing.T) {
 	db, mock, err := sqlmock.New()
+	executor := &MockDBExecutor{DB: db}
 	if err != nil {
 		t.Fatalf("failed to create mock database: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestInsert(t *testing.T) {
 		WithArgs(1, "test@example.com").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	queryBuilder := NewQueryBuilder(db)
+	queryBuilder := NewQueryBuilder(executor)
 	model := MockModel{ID: 1, Name: "", Email: "test@example.com"}
 
 	result, err := queryBuilder.Table(model).Insert(model)
@@ -116,7 +117,8 @@ func TestInsertWithReturning(t *testing.T) {
 		WillReturnRows(rows)
 
 	// Initialize the query builder
-	queryBuilder := NewQueryBuilder(db)
+	executor := &MockDBExecutor{DB: db}
+	queryBuilder := NewQueryBuilder(executor)
 
 	// Perform the Insert with returning
 	result, err := queryBuilder.Table(model).Returning(model, "*").Insert(model)
@@ -157,7 +159,8 @@ func TestUpdate(t *testing.T) {
 		WithArgs(2, 1).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	queryBuilder := NewQueryBuilder(db)
+	executor := &MockDBExecutor{DB: db}
+	queryBuilder := NewQueryBuilder(executor)
 	model := MockModel{ID: 2}
 
 	queryBuilder.Table(model).Set(model).Where("id = ?", 1)
@@ -188,8 +191,9 @@ func TestUpdateWithReturning(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email"}).
 			AddRow(1, "john", "test@example.com")) // Simulating the returned columns
 
-	// Instantiate your QueryBuilder or whatever object you're using
-	queryBuilder := NewQueryBuilder(db)
+		// Instantiate your QueryBuilder or whatever object you're using
+	executor := &MockDBExecutor{DB: db}
+	queryBuilder := NewQueryBuilder(executor)
 	model := MockModel{ID: 1, Name: "john", Email: "test@example.com"}
 
 	// Perform the update operation
@@ -235,7 +239,8 @@ func TestDelete(t *testing.T) {
 		WithArgs(1).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	queryBuilder := NewQueryBuilder(db)
+	executor := &MockDBExecutor{DB: db}
+	queryBuilder := NewQueryBuilder(executor)
 	model := MockModel{}
 
 	queryBuilder.Table(model).Where("id = ?", 1)
@@ -267,7 +272,8 @@ func TestSelect(t *testing.T) {
 		WithArgs(1).
 		WillReturnRows(row)
 
-	queryBuilder := NewQueryBuilder(db)
+	executor := &MockDBExecutor{DB: db}
+	queryBuilder := NewQueryBuilder(executor)
 	model := MockModel{}
 
 	queryBuilder.Table(model).Where("id = ?", 1)
