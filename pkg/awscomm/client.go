@@ -3,6 +3,7 @@ package awscomm
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,14 +22,24 @@ const (
 
 // Client represents an AWS communication API client
 type Client struct {
-	baseURL string
-	apiKey  string
+	baseURL       string
+	serviceName   string
+	serviceApiKey string
 }
 
-func NewClient(baseURL string, apiKey string) *Client {
+func NewClient(baseURL string, serviceName string, serviceApiKey string) *Client {
 	return &Client{
-		baseURL: baseURL,
-		apiKey:  apiKey,
+		baseURL:       baseURL,
+		serviceApiKey: serviceApiKey,
+		serviceName:   serviceName,
+	}
+}
+
+func (c Client) getAuthHeader() map[string]string {
+	credential := fmt.Sprintf("%s:%s", c.serviceName, c.serviceApiKey)
+	encoded := base64.StdEncoding.EncodeToString([]byte(credential))
+	return map[string]string{
+		"Authorization": fmt.Sprintf("Basic %s", encoded),
 	}
 }
 
@@ -192,9 +203,7 @@ func (c *Client) GetPresignedURL(ctx context.Context, fileExtension, contentType
 	}
 
 	url := fmt.Sprintf("%s/upload/presigned-url?file_extension=%s&content_type=%s", c.baseURL, fileExtension, contentType)
-	headers := map[string]string{
-		"x-api-key": c.apiKey,
-	}
+	headers := c.getAuthHeader()
 
 	// Use empty struct for GET request (no body)
 	type EmptyRequest struct{}
@@ -224,9 +233,7 @@ func (c *Client) buildURL(p string) (string, error) {
 }
 
 func (c *Client) sendRequest(ctx context.Context, url string, payload interface{}) (*Response, error) {
-	headers := map[string]string{
-		"x-api-key": c.apiKey,
-	}
+	headers := c.getAuthHeader()
 
 	// Use type assertion to determine the payload type and call HTTPRequest accordingly
 	var response Response

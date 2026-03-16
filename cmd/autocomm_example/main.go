@@ -9,7 +9,8 @@ import (
 	"github.com/phil-inc/pcommon/pkg/awscomm"
 )
 
-var apiKey = os.Getenv("COMM_API_KEY")
+var commServiceName = os.Getenv("COMM_SERVICE_NAME")
+var commServiceApiKey = os.Getenv("COMM_SERVICE_API_KEY")
 var baseURL = os.Getenv("COMM_BASE_URL")
 var toPhoneNumber = ""
 var email = ""
@@ -22,13 +23,13 @@ func main() {
 	if baseURL == "" {
 		log.Fatal("COMM_BASE_URL environment variable is required. Example: export COMM_BASE_URL=https://api.example.com")
 	}
-	if apiKey == "" {
-		log.Fatal("COMM_API_KEY environment variable is required. Example: export COMM_API_KEY=your-api-key")
+	if commServiceName == "" || commServiceApiKey == "" {
+		log.Fatal("COMM_SERVICE_NAME and COMM_SERVICE_API_KEY environment variable is required. Example: export COMM_SERVICE_NAME=your-api-key")
 	}
 
 	ctx := context.Background()
 
-	ac := awscomm.NewClient(baseURL, apiKey)
+	ac := awscomm.NewClient(baseURL, commServiceName, commServiceApiKey)
 
 	testSms(ctx, ac)
 	testEmail(ctx, ac)

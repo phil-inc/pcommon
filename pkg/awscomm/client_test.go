@@ -8,18 +8,20 @@ import (
 )
 
 var baseURL = "sdfh"
-var apiKey = "hsdfh"
+var serviceName = "test-service"
+var serviceApiKey = "secret-key"
 
 func TestNewClient(t *testing.T) {
-	client := NewClient(baseURL, apiKey)
+	client := NewClient(baseURL, serviceName, serviceApiKey)
 
 	assert.NotNil(t, client)
 	assert.NotEmpty(t, client.baseURL)
-	assert.NotEmpty(t, client.apiKey)
+	assert.NotEmpty(t, client.serviceName)
+	assert.NotEmpty(t, client.serviceApiKey)
 }
 
 func TestSendSMS_ValidationErrors(t *testing.T) {
-	client := NewClient(baseURL, apiKey)
+	client := NewClient(baseURL, serviceName, serviceApiKey)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -64,7 +66,7 @@ func TestSendSMS_ValidationErrors(t *testing.T) {
 }
 
 func TestSendVoiceMail_ValidationErrors(t *testing.T) {
-	client := NewClient(baseURL, apiKey)
+	client := NewClient(baseURL, serviceName, serviceApiKey)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -109,7 +111,7 @@ func TestSendVoiceMail_ValidationErrors(t *testing.T) {
 }
 
 func TestSendEmail_ValidationErrors(t *testing.T) {
-	client := NewClient(baseURL, apiKey)
+	client := NewClient(baseURL, serviceName, serviceApiKey)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -173,7 +175,7 @@ func TestSendEmail_ValidationErrors(t *testing.T) {
 }
 
 func TestSendFax_ValidationErrors(t *testing.T) {
-	client := NewClient(baseURL, apiKey)
+	client := NewClient(baseURL, serviceName, serviceApiKey)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -221,7 +223,7 @@ func TestSendFax_ValidationErrors(t *testing.T) {
 }
 
 func TestGetPresignedURL_ValidationErrors(t *testing.T) {
-	client := NewClient(baseURL, apiKey)
+	client := NewClient(baseURL, serviceName, serviceApiKey)
 	ctx := context.Background()
 
 	tests := []struct {
