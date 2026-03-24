@@ -20,6 +20,17 @@ const (
 	MaxFaxFileSize = 20 * 1024 * 1024 // 20 MB in bytes
 )
 
+// AllowedFileTypes maps file extensions to their MIME content types.
+var AllowedFileTypes = map[string]string{
+	"pdf":  "application/pdf",
+	"docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	"tif":  "image/tiff",
+	"jpg":  "image/jpeg",
+	"png":  "image/png",
+	"txt":  "text/plain",
+	"html": "text/html",
+}
+
 // Client represents an AWS communication API client
 type Client struct {
 	baseURL       string
@@ -119,10 +130,12 @@ func (c *Client) SendFax(ctx context.Context, request *FaxRequest) (*Response, e
 
 // SendFaxByContentBytes sends a fax using byte content (e.g., PDF bytes)
 // Phaxio Legacy V2
-// It uploads the content to S3 via presigned URL and then sends the fax
+// It uploads the content to S3 via presigned URL and then sends the fax.
+// fileExtension and contentType default to "pdf" / "application/pdf" if empty.
+// See AllowedFileTypes for supported formats.
 // WARNING: This function loads the entire file content into memory. For large files,
 // this may consume significant memory. Maximum file size is 20 MB.
-func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbackURL string, contentBytes []byte) (*Response, error) {
+func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbackURL string, contentBytes []byte, fileExtension, contentType string) (*Response, error) {
 	if toFaxNumber == "" {
 		return nil, NewError("to_fax_number is required")
 	}
@@ -135,7 +148,15 @@ func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbac
 		return nil, NewError(fmt.Sprintf("file size exceeds maximum allowed size of 20 MB (got %d bytes)", len(contentBytes)))
 	}
 
-	presigned, err := c.GetPresignedURL(ctx, "pdf", "application/pdf")
+	if fileExtension == "" {
+		fileExtension = "pdf"
+	}
+
+	if contentType == "" {
+		contentType = AllowedFileTypes[fileExtension]
+	}
+
+	presigned, err := c.GetPresignedURL(ctx, fileExtension, contentType)
 	if err != nil {
 		return nil, WrapError(err, "failed to get presigned URL")
 	}
@@ -145,7 +166,7 @@ func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbac
 	if err != nil {
 		return nil, WrapError(err, "failed to create upload request")
 	}
-	req.Header.Set("Content-Type", "application/pdf")
+	req.Header.Set("Content-Type", contentType)
 
 	// Use default http client for S3 upload (not using network.HTTPRequest since S3 doesn't return JSON)
 	client := &http.Client{}
@@ -190,16 +211,16 @@ func (c *Client) SendFaxByFileName(ctx context.Context, toFaxNumber, callbackURL
 		return nil, WrapError(err, "failed to read file")
 	}
 
-	return c.SendFaxByContentBytes(ctx, toFaxNumber, callbackURL, contentBytes)
+	return c.SendFaxByContentBytes(ctx, toFaxNumber, callbackURL, contentBytes, "", "")
 }
 
 func (c *Client) GetPresignedURL(ctx context.Context, fileExtension, contentType string) (*PresignedURLResponse, error) {
 	if fileExtension == "" {
-		return nil, NewError("file_extension is required")
+		fileExtension = "pdf"
 	}
 
 	if contentType == "" {
-		return nil, NewError("content_type is required")
+		contentType = AllowedFileTypes[fileExtension]
 	}
 
 	url := fmt.Sprintf("%s/upload/presigned-url?file_extension=%s&content_type=%s", c.baseURL, fileExtension, contentType)
