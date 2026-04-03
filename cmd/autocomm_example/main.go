@@ -104,7 +104,12 @@ func testFax(ctx context.Context, ac *awscomm.Client) {
 }
 
 func testFaxV2(ctx context.Context, ac *awscomm.Client) {
-	smsResp, err := ac.SendFaxByContentBytes(ctx, toPhoneNumber, "", stringToPDFBytes(message), "", "")
+	// smsResp, err := ac.SendFaxByContentBytes(ctx, toPhoneNumber, "", stringToPDFBytes(message), "", "")
+	smsResp, err := ac.SendFaxByContentBytes(ctx, &awscomm.FaxRequest{
+		Payload: awscomm.FaxPayload{
+			ToFaxNumber: toPhoneNumber,
+		},
+	}, stringToPDFBytes(message), "", "")
 	if err != nil {
 		panic(err.Error())
 	}

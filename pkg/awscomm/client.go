@@ -135,8 +135,9 @@ func (c *Client) SendFax(ctx context.Context, request *FaxRequest) (*Response, e
 // See AllowedFileTypes for supported formats.
 // WARNING: This function loads the entire file content into memory. For large files,
 // this may consume significant memory. Maximum file size is 20 MB.
-func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbackURL string, contentBytes []byte, fileExtension, contentType string) (*Response, error) {
-	if toFaxNumber == "" {
+func (c *Client) SendFaxByContentBytes(ctx context.Context, request *FaxRequest, contentBytes []byte, fileExtension, contentType string) (*Response, error) {
+
+	if request.Payload.ToFaxNumber == "" {
 		return nil, NewError("to_fax_number is required")
 	}
 
@@ -181,15 +182,8 @@ func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbac
 		return nil, NewError(fmt.Sprintf("upload failed with status %d: %s", resp.StatusCode, string(body)))
 	}
 
-	faxRequest := &FaxRequest{
-		CallbackURL: callbackURL,
-		Payload: FaxPayload{
-			ToFaxNumber: toFaxNumber,
-			FileURL:     presigned.FileURL,
-		},
-	}
-
-	return c.SendFax(ctx, faxRequest)
+	request.Payload.FileURL = presigned.FileURL
+	return c.SendFax(ctx, request)
 }
 
 // SendFaxByFileName sends a fax using a file from the local filesystem
@@ -197,8 +191,8 @@ func (c *Client) SendFaxByContentBytes(ctx context.Context, toFaxNumber, callbac
 // It reads the file, uploads it to S3 via presigned URL, and then sends the fax
 // WARNING: This function loads the entire file into memory (not chunked/streamed).
 // For large files, this may consume significant memory. Maximum file size is 20 MB.
-func (c *Client) SendFaxByFileName(ctx context.Context, toFaxNumber, callbackURL, fileName string) (*Response, error) {
-	if toFaxNumber == "" {
+func (c *Client) SendFaxByFileName(ctx context.Context, request *FaxRequest, fileName string) (*Response, error) {
+	if request.Payload.ToFaxNumber == "" {
 		return nil, NewError("to_fax_number is required")
 	}
 
@@ -211,7 +205,13 @@ func (c *Client) SendFaxByFileName(ctx context.Context, toFaxNumber, callbackURL
 		return nil, WrapError(err, "failed to read file")
 	}
 
-	return c.SendFaxByContentBytes(ctx, toFaxNumber, callbackURL, contentBytes, "", "")
+	// Extract file extension from the filename (e.g., "document.pdf" -> "pdf")
+	ext := path.Ext(fileName)
+	if ext != "" {
+		ext = ext[1:] // remove leading dot
+	}
+
+	return c.SendFaxByContentBytes(ctx, request, contentBytes, ext, "")
 }
 
 func (c *Client) GetPresignedURL(ctx context.Context, fileExtension, contentType string) (*PresignedURLResponse, error) {
