@@ -1,7 +1,6 @@
 package awscomm
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -217,95 +216,6 @@ func (c *Client) SendFaxByFileName(ctx context.Context, request *FaxRequest, fil
 	}
 
 	return c.SendFaxByContentBytes(ctx, request, contentBytes, ext, "")
-}
-
-// SendFaxByFileStream sends a fax by streaming a file directly to S3 without loading it into memory.
-// Unlike SendFaxByFileName, it opens the file, checks its size via Stat (no content read), and
-// streams the bytes chunk-by-chunk as the HTTP PUT body. This makes it safe to call concurrently
-// without significant memory overhead. Maximum file size is 20 MB.
-//
-// chunkSize controls the read-buffer size in bytes (default: DefaultFaxStreamChunkSize / 32 KB).
-// Increase it to reduce syscall overhead on fast disks; decrease it to lower per-goroutine memory
-// when running many concurrent uploads.
-func (c *Client) SendFaxByFileStream(ctx context.Context, request *FaxRequest, fileName string, chunkSize ...int) (*Response, error) {
-	if request.Payload.ToFaxNumber == "" {
-		return nil, NewError("to_fax_number is required")
-	}
-
-	if fileName == "" {
-		return nil, NewError("file_name is required")
-	}
-
-	f, err := os.Open(fileName)
-	if err != nil {
-		return nil, WrapError(err, "failed to open file")
-	}
-	defer f.Close()
-
-	stat, err := f.Stat()
-	if err != nil {
-		return nil, WrapError(err, "failed to stat file")
-	}
-
-	fileSize := stat.Size()
-	if fileSize == 0 {
-		return nil, NewError("file is empty")
-	}
-
-	if fileSize > MaxFaxFileSize {
-		return nil, NewError(fmt.Sprintf("file size exceeds maximum allowed size of 20 MB (got %d bytes)", fileSize))
-	}
-
-	ext := path.Ext(fileName)
-	if ext != "" {
-		ext = ext[1:] // remove leading dot
-	}
-
-	if ext == "" {
-		ext = "pdf"
-	}
-
-	contentType, ok := AllowedFileTypes[ext]
-	if !ok {
-		contentType = "application/pdf"
-	}
-
-	presigned, err := c.GetPresignedURL(ctx, ext, contentType)
-	if err != nil {
-		return nil, WrapError(err, "failed to get presigned URL")
-	}
-
-	bufSize := DefaultFaxStreamChunkSize
-	if len(chunkSize) > 0 && chunkSize[0] > 0 {
-		bufSize = chunkSize[0]
-	}
-
-	// Wrap the file in a buffered reader of the chosen chunk size.
-	// net/http will read from this buffer when writing to the TCP connection, so bufSize
-	// controls how many bytes are pulled from disk per read syscall.
-	// Setting ContentLength avoids chunked transfer encoding, which S3 requires for presigned PUTs.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, presigned.UploadURL, bufio.NewReaderSize(f, bufSize))
-	if err != nil {
-		return nil, WrapError(err, "failed to create upload request")
-	}
-
-	req.Header.Set("Content-Type", contentType)
-	req.ContentLength = fileSize
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, WrapError(err, "failed to upload file")
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, NewError(fmt.Sprintf("upload failed with status %d: %s", resp.StatusCode, string(body)))
-	}
-
-	request.Payload.FileURL = presigned.FileURL
-	return c.SendFax(ctx, request)
 }
 
 func (c *Client) GetPresignedURL(ctx context.Context, fileExtension, contentType string) (*PresignedURLResponse, error) {

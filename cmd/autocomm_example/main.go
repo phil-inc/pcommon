@@ -36,7 +36,6 @@ func main() {
 	testFax(ctx, ac)
 	testFaxV2(ctx, ac)
 	testVoiceMail(ctx, ac)
-	testFaxV2Stream(ctx, ac)
 }
 
 func testSms(ctx context.Context, ac *awscomm.Client) {
@@ -111,33 +110,6 @@ func testFaxV2(ctx context.Context, ac *awscomm.Client) {
 			ToFaxNumber: toPhoneNumber,
 		},
 	}, stringToPDFBytes(message), "", "")
-	if err != nil {
-		panic(err.Error())
-	}
-	fmt.Printf("ID: %s , STATUS: %s , type: %s\n", smsResp.CommRequestID, smsResp.Status, smsResp.Type)
-}
-
-func testFaxV2Stream(ctx context.Context, ac *awscomm.Client) {
-	tmpFile, err := os.CreateTemp("", "tempfile-*")
-	if err != nil {
-		return
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.Write(stringToPDFBytes(message)); err != nil {
-		tmpFile.Close()
-		return
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		return
-	}
-	smsResp, err := ac.SendFaxByFileStream(ctx, &awscomm.FaxRequest{
-		Payload: awscomm.FaxPayload{
-			ToFaxNumber: toPhoneNumber,
-		},
-		SkipDuplicateDetection: true,
-	}, tmpFile.Name())
 	if err != nil {
 		panic(err.Error())
 	}
