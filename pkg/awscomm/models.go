@@ -22,7 +22,8 @@ type VoiceMailRequest struct {
 
 type VoiceMailPayload struct {
 	ToPhoneNumber string `json:"to_phone_number"`
-	Message       string `json:"message"`
+	Message       string `json:"message,omitempty"`
+	TwiML         string `json:"twiml,omitempty"`
 }
 
 type EmailRecipient struct {

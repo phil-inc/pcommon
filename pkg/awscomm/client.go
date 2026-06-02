@@ -85,8 +85,8 @@ func (c *Client) SendVoiceMail(ctx context.Context, request *VoiceMailRequest) (
 		return nil, NewError("to_phone_number is required")
 	}
 
-	if request.Payload.Message == "" {
-		return nil, NewError("message is required")
+	if request.Payload.Message == "" && request.Payload.TwiML == "" {
+		return nil, NewError("message or twiml is required")
 	}
 
 	url, err := c.buildURL("/send/voice_mail")
