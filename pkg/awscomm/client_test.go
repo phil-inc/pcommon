@@ -2,9 +2,13 @@ package awscomm
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var baseURL = "sdfh"
@@ -86,7 +90,7 @@ func TestSendVoiceMail_ValidationErrors(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "missing message",
+			name: "missing message and twiml",
 			request: &VoiceMailRequest{
 				CallbackURL: "https://example.com/callback",
 				Payload: VoiceMailPayload{
@@ -108,6 +112,58 @@ func TestSendVoiceMail_ValidationErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSendVoiceMail_AllowsTwiMLPayload(t *testing.T) {
+	var captured VoiceMailRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/send/voice_mail", r.URL.Path)
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
+
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"status":"QUEUED","comm_request_id":"voice-mail-test","type":"voice_mail"}`))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, serviceName, serviceApiKey)
+	resp, err := client.SendVoiceMail(context.Background(), &VoiceMailRequest{
+		CallbackURL: "https://example.com/callback",
+		Payload: VoiceMailPayload{
+			ToPhoneNumber: "+17609579111",
+			TwiML:         `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Hello</Say></Response>`,
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "voice-mail-test", resp.CommRequestID)
+	assert.Equal(t, "+17609579111", captured.Payload.ToPhoneNumber)
+	assert.Equal(t, `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Hello</Say></Response>`, captured.Payload.TwiML)
+	assert.Empty(t, captured.Payload.Message)
+}
+
+func TestVoiceMailRequest_MarshalsTwiMLPayload(t *testing.T) {
+	req := VoiceMailRequest{
+		CallbackURL: "https://example.com/callback",
+		Payload: VoiceMailPayload{
+			ToPhoneNumber: "+18024712700",
+			TwiML:         `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Hello</Say></Response>`,
+		},
+		Metadata: map[string]any{
+			"order_number": "1234-1234-1234",
+		},
+	}
+
+	raw, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(raw, &payload))
+
+	voicePayload := payload["payload"].(map[string]any)
+	assert.Equal(t, "+18024712700", voicePayload["to_phone_number"])
+	assert.Equal(t, req.Payload.TwiML, voicePayload["twiml"])
+	assert.NotContains(t, voicePayload, "message")
 }
 
 func TestSendEmail_ValidationErrors(t *testing.T) {
