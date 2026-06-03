@@ -20,7 +20,7 @@ const (
 const (
 	COMM_TYPE_SMS        = "sms"
 	COMM_TYPE_EMAIL      = "email"
-	COMM_TYPE_VOICE_MAIL = "voice_mail"
+	COMM_TYPE_VOICE_CALL = "voice_mail" // TODO: update the step function later
 	COMM_TYPE_FAX        = "fax"
 )
 

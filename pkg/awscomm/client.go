@@ -80,7 +80,7 @@ func (c *Client) SendSMS(ctx context.Context, request *SMSRequest) (*Response, e
 	return c.sendRequest(ctx, url, request)
 }
 
-func (c *Client) SendVoiceMail(ctx context.Context, request *VoiceMailRequest) (*Response, error) {
+func (c *Client) SendVoiceCall(ctx context.Context, request *VoiceCallRequest) (*Response, error) {
 	if request.Payload.ToPhoneNumber == "" {
 		return nil, NewError("to_phone_number is required")
 	}
@@ -269,8 +269,8 @@ func (c *Client) sendRequest(ctx context.Context, url string, payload interface{
 		response, err = network.HTTPRequest[*SMSRequest, Response](
 			ctx, http.MethodPost, url, req, headers, 30,
 		)
-	case *VoiceMailRequest:
-		response, err = network.HTTPRequest[*VoiceMailRequest, Response](
+	case *VoiceCallRequest:
+		response, err = network.HTTPRequest[*VoiceCallRequest, Response](
 			ctx, http.MethodPost, url, req, headers, 30,
 		)
 	case *EmailRequest:

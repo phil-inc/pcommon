@@ -69,20 +69,20 @@ func TestSendSMS_ValidationErrors(t *testing.T) {
 	}
 }
 
-func TestSendVoiceMail_ValidationErrors(t *testing.T) {
+func TestSendVoiceCall_ValidationErrors(t *testing.T) {
 	client := NewClient(baseURL, serviceName, serviceApiKey)
 	ctx := context.Background()
 
 	tests := []struct {
 		name        string
-		request     *VoiceMailRequest
+		request     *VoiceCallRequest
 		expectError bool
 	}{
 		{
 			name: "missing phone number",
-			request: &VoiceMailRequest{
+			request: &VoiceCallRequest{
 				CallbackURL: "https://example.com/callback",
-				Payload: VoiceMailPayload{
+				Payload: VoiceCallPayload{
 					ToPhoneNumber: "",
 					Message:       "Test message",
 				},
@@ -91,9 +91,9 @@ func TestSendVoiceMail_ValidationErrors(t *testing.T) {
 		},
 		{
 			name: "missing message and twiml",
-			request: &VoiceMailRequest{
+			request: &VoiceCallRequest{
 				CallbackURL: "https://example.com/callback",
-				Payload: VoiceMailPayload{
+				Payload: VoiceCallPayload{
 					ToPhoneNumber: "+17609579111",
 					Message:       "",
 				},
@@ -104,7 +104,7 @@ func TestSendVoiceMail_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.SendVoiceMail(ctx, tt.request)
+			_, err := client.SendVoiceCall(ctx, tt.request)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -114,38 +114,38 @@ func TestSendVoiceMail_ValidationErrors(t *testing.T) {
 	}
 }
 
-func TestSendVoiceMail_AllowsTwiMLPayload(t *testing.T) {
-	var captured VoiceMailRequest
+func TestSendVoiceCall_AllowsTwiMLPayload(t *testing.T) {
+	var captured VoiceCallRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/send/voice_mail", r.URL.Path)
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
 
 		w.Header().Set("Content-Type", "application/json")
-		_, err := w.Write([]byte(`{"status":"QUEUED","comm_request_id":"voice-mail-test","type":"voice_mail"}`))
+		_, err := w.Write([]byte(`{"status":"QUEUED","comm_request_id":"voice-call-test","type":"voice_mail"}`))
 		require.NoError(t, err)
 	}))
 	defer server.Close()
 
 	client := NewClient(server.URL, serviceName, serviceApiKey)
-	resp, err := client.SendVoiceMail(context.Background(), &VoiceMailRequest{
+	resp, err := client.SendVoiceCall(context.Background(), &VoiceCallRequest{
 		CallbackURL: "https://example.com/callback",
-		Payload: VoiceMailPayload{
+		Payload: VoiceCallPayload{
 			ToPhoneNumber: "+17609579111",
 			TwiML:         `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Hello</Say></Response>`,
 		},
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "voice-mail-test", resp.CommRequestID)
+	assert.Equal(t, "voice-call-test", resp.CommRequestID)
 	assert.Equal(t, "+17609579111", captured.Payload.ToPhoneNumber)
 	assert.Equal(t, `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Hello</Say></Response>`, captured.Payload.TwiML)
 	assert.Empty(t, captured.Payload.Message)
 }
 
-func TestVoiceMailRequest_MarshalsTwiMLPayload(t *testing.T) {
-	req := VoiceMailRequest{
+func TestVoiceCallRequest_MarshalsTwiMLPayload(t *testing.T) {
+	req := VoiceCallRequest{
 		CallbackURL: "https://example.com/callback",
-		Payload: VoiceMailPayload{
+		Payload: VoiceCallPayload{
 			ToPhoneNumber: "+18024712700",
 			TwiML:         `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Hello</Say></Response>`,
 		},
