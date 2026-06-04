@@ -11,7 +11,7 @@ type WebhookPayload struct {
 	Payload       map[string]any    `json:"payload"`
 	Metadata      map[string]string `json:"metadata"`
 	Type          string            `json:"type"`         // "internal" or "external"
-	CommType      string            `json:"commType"`     // e.g., "sms", "email", "fax", "voice_mail" for voice calls
+	CommType      string            `json:"commType"`     // e.g., "sms", "email", "fax", "voice_mail"
 	Status        string            `json:"status"`       // e.g., "QUEUED", "FAILED"
 	FailedReason  string            `json:"failedReason"` // Error message if failed
 	CommRequestId string            `json:"commRequestId"`

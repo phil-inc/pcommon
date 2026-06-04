@@ -77,6 +77,20 @@ pdfBytes, _ := os.ReadFile("document.pdf")
 response, err := client.SendFaxByContentBytes(ctx, "+1234567890", "https://callback.example.com", pdfBytes, nil)
 ```
 
+### Send Voice Mail
+
+```go
+request := &awscomm.VoiceMailRequest{
+    CallbackURL: "https://callback.example.com",
+    Payload: awscomm.VoiceMailPayload{
+        ToPhoneNumber: "+1234567890",
+        Message:       "This is a voice message",
+    },
+}
+
+response, err := client.SendVoiceMail(ctx, request)
+```
+
 ### Send Voice Call
 
 ```go
@@ -154,8 +168,8 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
         // Handle email webhook
     case "fax":
         // Handle fax webhook
-    case awscomm.COMM_TYPE_VOICE_CALL:
-        // Handle voice call webhook
+    case "voice_mail":
+        // Handle voice mail webhook
     }
 
     w.WriteHeader(http.StatusOK)
@@ -169,7 +183,7 @@ type WebhookPayload struct {
     Payload      interface{}
     Metadata     interface{}
     Type         string // "internal" or "external"
-    CommType     string // "sms", "email", "fax", "voice_mail" for voice calls
+    CommType     string // "sms", "email", "fax", "voice_mail"
     Status       string // "QUEUED", "SENT", "FAILED"
     FailedReason string // Error message if status is FAILED
 }

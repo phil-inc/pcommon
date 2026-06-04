@@ -13,6 +13,19 @@ type SMSPayload struct {
 	FromType      string `json:"from_type"`
 }
 
+type VoiceMailRequest struct {
+	CallbackURL            string           `json:"callback_url"`
+	Payload                VoiceMailPayload `json:"payload"`
+	SkipDuplicateDetection bool             `json:"skip_duplicate_detection"`
+	Metadata               map[string]any   `json:"metadata"`
+}
+
+type VoiceMailPayload struct {
+	ToPhoneNumber string `json:"to_phone_number"`
+	Message       string `json:"message,omitempty"`
+	TwiML         string `json:"twiml,omitempty"`
+}
+
 type VoiceCallRequest struct {
 	CallbackURL            string           `json:"callback_url"`
 	Payload                VoiceCallPayload `json:"payload"`
@@ -77,7 +90,7 @@ type FaxPayload struct {
 type Response struct {
 	Status        string `json:"status"`          // e.g., "QUEUED"
 	CommRequestID string `json:"comm_request_id"` // UUID
-	Type          string `json:"type"`            // e.g., "sms", "email", "fax", "voice_mail" for voice calls
+	Type          string `json:"type"`            // e.g., "sms", "email", "fax", "voice_mail"
 }
 
 // All error responses (400, 401, 404, 500) use the "message" field
