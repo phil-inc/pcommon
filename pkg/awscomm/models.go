@@ -26,6 +26,19 @@ type VoiceMailPayload struct {
 	TwiML         string `json:"twiml,omitempty"`
 }
 
+type VoiceCallRequest struct {
+	CallbackURL            string           `json:"callback_url"`
+	Payload                VoiceCallPayload `json:"payload"`
+	SkipDuplicateDetection bool             `json:"skip_duplicate_detection"`
+	Metadata               map[string]any   `json:"metadata"`
+}
+
+type VoiceCallPayload struct {
+	ToPhoneNumber string `json:"to_phone_number"`
+	Message       string `json:"message,omitempty"`
+	TwiML         string `json:"twiml,omitempty"`
+}
+
 type EmailRecipient struct {
 	Email string `json:"email"`
 	Type  string `json:"type"` // "to", "cc", "bcc"

@@ -91,6 +91,20 @@ request := &awscomm.VoiceMailRequest{
 response, err := client.SendVoiceMail(ctx, request)
 ```
 
+### Send Voice Call
+
+```go
+request := &awscomm.VoiceCallRequest{
+    CallbackURL: "https://callback.example.com",
+    Payload: awscomm.VoiceCallPayload{
+        ToPhoneNumber: "+1234567890",
+        Message:       "This is a voice message",
+    },
+}
+
+response, err := client.SendVoiceCall(ctx, request)
+```
+
 ## Query Parameters
 
 All send methods support optional query parameters:

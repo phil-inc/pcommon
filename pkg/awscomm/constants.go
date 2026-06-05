@@ -21,6 +21,7 @@ const (
 	COMM_TYPE_SMS        = "sms"
 	COMM_TYPE_EMAIL      = "email"
 	COMM_TYPE_VOICE_MAIL = "voice_mail"
+	COMM_TYPE_VOICE_CALL = COMM_TYPE_VOICE_MAIL
 	COMM_TYPE_FAX        = "fax"
 )
 

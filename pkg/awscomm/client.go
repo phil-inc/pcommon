@@ -96,6 +96,22 @@ func (c *Client) SendVoiceMail(ctx context.Context, request *VoiceMailRequest) (
 	return c.sendRequest(ctx, url, request)
 }
 
+func (c *Client) SendVoiceCall(ctx context.Context, request *VoiceCallRequest) (*Response, error) {
+	if request.Payload.ToPhoneNumber == "" {
+		return nil, NewError("to_phone_number is required")
+	}
+
+	if request.Payload.Message == "" && request.Payload.TwiML == "" {
+		return nil, NewError("message or twiml is required")
+	}
+
+	url, err := c.buildURL("/send/voice_mail")
+	if err != nil {
+		return nil, err
+	}
+	return c.sendRequest(ctx, url, request)
+}
+
 func (c *Client) SendEmail(ctx context.Context, request *EmailRequest) (*Response, error) {
 	if len(request.Payload.To) == 0 {
 		return nil, NewError("at least one recipient is required")
@@ -271,6 +287,10 @@ func (c *Client) sendRequest(ctx context.Context, url string, payload interface{
 		)
 	case *VoiceMailRequest:
 		response, err = network.HTTPRequest[*VoiceMailRequest, Response](
+			ctx, http.MethodPost, url, req, headers, 30,
+		)
+	case *VoiceCallRequest:
+		response, err = network.HTTPRequest[*VoiceCallRequest, Response](
 			ctx, http.MethodPost, url, req, headers, 30,
 		)
 	case *EmailRequest:
