@@ -861,9 +861,10 @@ func GetTempEmail(ptName, ptPhoneNumber string) string {
 	tempPtName := strings.Replace(ptName, " ", "", -1)
 
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	uniqueID := fmt.Sprintf("%04d", rand.Intn(10000))
 	suffix := "-temp@phil.us"
 	maxLen := 50
-	localPart := fmt.Sprintf("%s+%s%s", tempPtName, ptPhoneNumber, ts)
+	localPart := fmt.Sprintf("%s+%s%s", tempPtName, uniqueID, ts)
 
 	// Truncate the local part if total email exceeds 50 characters
 	maxLocalLen := maxLen - len(suffix)
