@@ -16,16 +16,12 @@ import (
 //	DateStartTimePST converts to PST first, then truncates.
 //
 // Handing DateStartTime a UTC-based timestamp along with LocationPST therefore yields the
-// UTC calendar day wearing a Pacific offset. capi hit exactly this: a late-night UTC
-// timestamp anchored a day ahead of the intended Pacific day, so reminder scheduling
-// skipped a day. The fix was at the call site -- switch to DateStartTimePST -- not in
-// DateStartTime, whose behavior below is correct for its own contract.
+// UTC calendar day wearing a Pacific offset.
 func TestDateStartTime_UTCPSTDateDivergence(t *testing.T) {
 	// July 7, 2026 01:12 UTC == July 6, 2026 18:12 PDT
 	ts := time.Date(2026, time.July, 7, 1, 12, 0, 0, time.UTC)
 
 	// No conversion: the input's UTC fields (July 7) are reused as Pacific wall-clock.
-	// This is the shape of the original capi call, and the source of the off-by-one.
 	wantUTCDayStart := time.Date(2026, time.July, 7, 0, 0, 0, 0, LocationPST)
 	gotUTCDayStart := DateStartTime(&ts, LocationPST)
 	if !gotUTCDayStart.Equal(wantUTCDayStart) {
@@ -34,7 +30,6 @@ func TestDateStartTime_UTCPSTDateDivergence(t *testing.T) {
 	}
 
 	// Converts first, so it anchors to the Pacific day the timestamp actually falls on.
-	// This is what capi was switched to.
 	wantPSTDayStart := time.Date(2026, time.July, 6, 0, 0, 0, 0, LocationPST)
 	gotPSTDayStart := DateStartTimePST(&ts)
 	if !gotPSTDayStart.Equal(wantPSTDayStart) {
