@@ -4,6 +4,7 @@ type SMSRequest struct {
 	CallbackURL            string         `json:"callback_url"`
 	Metadata               map[string]any `json:"metadata"`
 	Payload                SMSPayload     `json:"payload"`
+	SenderID               string         `json:"sender_id,omitempty"` // SMS-only; selects a short code via the comm service short_codes map (e.g. "default", "axsome_oms"). Absent resolves to "default".
 	SkipDuplicateDetection bool           `json:"skip_duplicate_detection"`
 }
 

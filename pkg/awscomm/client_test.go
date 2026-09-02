@@ -69,6 +69,63 @@ func TestSendSMS_ValidationErrors(t *testing.T) {
 	}
 }
 
+func TestSendSMS_SenderIDSerialization(t *testing.T) {
+	t.Run("omitted SenderID is absent from request body", func(t *testing.T) {
+		var body map[string]any
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/send/sms", r.URL.Path)
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+
+			w.Header().Set("Content-Type", "application/json")
+			_, err := w.Write([]byte(`{"status":"QUEUED","comm_request_id":"sms-test","type":"sms"}`))
+			require.NoError(t, err)
+		}))
+		defer server.Close()
+
+		client := NewClient(server.URL, serviceName, serviceApiKey)
+		_, err := client.SendSMS(context.Background(), &SMSRequest{
+			CallbackURL: "https://example.com/callback",
+			Payload: SMSPayload{
+				ToPhoneNumber: "+17609579111",
+				Message:       "Test message",
+			},
+		})
+
+		require.NoError(t, err)
+		assert.NotContains(t, body, "sender_id")
+	})
+
+	t.Run("set SenderID is present at top level of request body", func(t *testing.T) {
+		var body map[string]any
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/send/sms", r.URL.Path)
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+
+			w.Header().Set("Content-Type", "application/json")
+			_, err := w.Write([]byte(`{"status":"QUEUED","comm_request_id":"sms-test","type":"sms"}`))
+			require.NoError(t, err)
+		}))
+		defer server.Close()
+
+		client := NewClient(server.URL, serviceName, serviceApiKey)
+		_, err := client.SendSMS(context.Background(), &SMSRequest{
+			CallbackURL: "https://example.com/callback",
+			Payload: SMSPayload{
+				ToPhoneNumber: "+17609579111",
+				Message:       "Test message",
+			},
+			SenderID: "axsome_oms",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "axsome_oms", body["sender_id"])
+		// Ensure the field is top-level, not nested inside payload.
+		smsPayload, ok := body["payload"].(map[string]any)
+		require.True(t, ok)
+		assert.NotContains(t, smsPayload, "sender_id")
+	})
+}
+
 func TestSendVoiceMail_ValidationErrors(t *testing.T) {
 	client := NewClient(baseURL, serviceName, serviceApiKey)
 	ctx := context.Background()
