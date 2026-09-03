@@ -157,6 +157,14 @@ func IsPhoneNumber(str string) bool {
 	return re.MatchString(str)
 }
 
+// IsOrderNumber returns true if the given string matches Phil's generated order number format
+// (xxxx-xxxx-xxxx). Order numbers and 24-hex object ids are mutually exclusive, so this
+// distinguishes the two wherever an identifier could be either.
+func IsOrderNumber(str string) bool {
+	re := regexp.MustCompile(`^\d{4}-\d{4}-\d{4}$`)
+	return re.MatchString(str)
+}
+
 // FormatPhoneToZendeskFormat formats the given phone number to: +1XXXXXXXXXX
 func FormatPhoneToZendeskFormat(phoneNumber string) string {
 	return FormatNumber(phoneNumber, true)
