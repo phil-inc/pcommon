@@ -28,11 +28,12 @@ request := &awscomm.SMSRequest{
         ToPhoneNumber: "+1234567890",
         Message:       "Hello, World!",
     },
-    // SenderID is optional and SMS-only. It selects a specific short code via the
-    // comm service `short_codes` map (e.g. "default", "axsome_oms"). When omitted,
-    // the comm service resolves it to "default". An unknown value returns HTTP 400.
-    // It is ignored for non-prod environments (which send from the long code).
-    SenderID: "axsome_oms",
+    // ShortCodeAccountID is optional and SMS-only. It selects a specific short code
+    // via the comm service `short_codes` map (e.g. "default", "axsome_oms"). When
+    // omitted, the comm service resolves it to "default". An unknown value returns
+    // HTTP 400. It is ignored for non-prod environments (which send from the long
+    // code). It serializes as the top-level "short_code_account_id" field on the wire.
+    ShortCodeAccountID: "axsome_oms",
 }
 
 response, err := client.SendSMS(ctx, request)
