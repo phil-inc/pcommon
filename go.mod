@@ -1,8 +1,6 @@
 module github.com/phil-inc/pcommon
 
-go 1.23
-
-toolchain go1.24.6
+go 1.25.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -29,7 +27,7 @@ require (
 	github.com/spf13/cast v1.6.0
 	go.uber.org/mock v0.5.2
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
-	golang.org/x/mod v0.22.0
+	golang.org/x/mod v0.37.0
 )
 
 require (
@@ -76,7 +74,7 @@ require (
 	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
 	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
-	golang.org/x/text v0.3.7
+	golang.org/x/text v0.40.0
 	google.golang.org/api v0.80.0
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220524023933-508584e28198 // indirect
