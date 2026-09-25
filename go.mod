@@ -1,6 +1,6 @@
 module github.com/phil-inc/pcommon
 
-go 1.23
+go 1.23.0
 
 toolchain go1.24.6
 
@@ -27,9 +27,9 @@ require (
 	github.com/redis/go-redis/v9 v9.5.1
 	github.com/rickar/cal/v2 v2.1.15
 	github.com/spf13/cast v1.6.0
-	go.uber.org/mock v0.5.2
+	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
-	golang.org/x/mod v0.22.0
+	golang.org/x/mod v0.27.0
 )
 
 require (
