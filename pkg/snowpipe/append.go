@@ -1,0 +1,655 @@
+package snowpipe
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	mrand "math/rand/v2"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/klauspost/compress/zstd"
+)
+
+// maxPayload is Snowflake's cap on one request as sent, after compression.
+const maxPayload = 4 << 20
+
+// MaxRow bounds one encoded row. A row under it fits one request even if it does not compress,
+// so an oversized row fails before anything is sent, where the caller knows which row it is.
+const MaxRow = maxPayload - 64<<10
+
+// maxRequest bounds the uncompressed rows of one request, whatever the compression ratio.
+const maxRequest = 16 << 20
+
+var (
+	// ErrTooLarge is a row over MaxRow, or a request Snowflake answered 413. Sending it again
+	// fails again.
+	ErrTooLarge = errors.New("snowpipe: too large")
+	// ErrClosed is AppendRows after Close, or rows Close gave up on.
+	ErrClosed = errors.New("snowpipe: client closed")
+)
+
+// AppendRows stores the rows in the pipe's Elastic channel and returns once Snowflake has
+// acknowledged every one of them. The pipe is in Config.Database and Config.Schema.
+//
+// It is safe for concurrent use, and concurrent calls to one pipe share requests. Throttling,
+// outages, timeouts and expired tokens are retried inside, until ctx ends or RetryFor passes.
+// An error means some rows may not be stored; calling again with the same rows can store the
+// others twice, so readers must tolerate duplicates. ErrTooLarge comes before anything is sent.
+func (c *Client) AppendRows(ctx context.Context, pipe string, rows []map[string]any) error {
+	return c.AppendTables(ctx, map[string][]map[string]any{pipe: rows})
+}
+
+// AppendTables is AppendRows for several pipes at once. It queues every pipe's rows and then
+// waits for all of them, so a caller that writes many tables needs no goroutines of its own.
+// Every row is encoded and checked before any is sent.
+func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[string]any) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	type encoded struct {
+		pipe string
+		data []byte
+		rows int
+	}
+	var all []encoded
+	release := func() {
+		for _, e := range all {
+			dataPool.put(e.data)
+		}
+	}
+	total := 0
+	for pipe, rows := range tables {
+		if len(rows) == 0 {
+			continue
+		}
+		data, err := encode(rows)
+		if err != nil {
+			release()
+			return fmt.Errorf("%s: %w", pipe, err)
+		}
+		all = append(all, encoded{pipe, data, len(rows)})
+		total += len(rows)
+	}
+	if len(all) == 0 {
+		return nil
+	}
+
+	queues, err := c.begin(len(all), func(i int) string { return all[i].pipe })
+	if err != nil {
+		release()
+		return err
+	}
+	defer c.calls.Done()
+
+	w := &waiter{ctx: ctx, done: make(chan struct{})}
+	cuts := make([][]*chunk, len(all))
+	n := 0
+	for i, e := range all {
+		w.bufs = append(w.bufs, e.data)
+		cuts[i] = w.cut(e.data, e.rows, c.target())
+		n += len(cuts[i])
+	}
+	w.pending.Store(int32(n))
+	for i, q := range queues {
+		c.enqueue(q, cuts[i])
+	}
+
+	select {
+	case <-w.done:
+		if w.err != nil {
+			return fmt.Errorf("append %d rows: %w", total, w.err)
+		}
+		return nil
+	case <-ctx.Done():
+		return ctx.Err() // chunks not yet sent are dropped; one in flight may still land
+	}
+}
+
+// encode writes the rows as NDJSON in the caller's goroutine, so encoding scales with callers
+// and costs no worker time.
+func encode(rows []map[string]any) ([]byte, error) {
+	buf := bytes.NewBuffer(dataPool.get(len(rows) * 256))
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false) // <, > and & are valid JSON; escaping them only costs bytes
+	for _, r := range rows {
+		before := buf.Len()
+		if err := enc.Encode(r); err != nil {
+			dataPool.put(buf.Bytes())
+			return nil, fmt.Errorf("encode row: %w", err)
+		}
+		if n := buf.Len() - before; n > MaxRow {
+			dataPool.put(buf.Bytes())
+			return nil, fmt.Errorf("a row of %d bytes is over the request limit: %w", n, ErrTooLarge)
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+// Close waits for AppendRows calls in progress, then stops the workers. New calls get
+// ErrClosed. If ctx ends first, requests in flight are cut off and their callers get an error.
+func (c *Client) Close(ctx context.Context) error {
+	c.qmu.Lock()
+	if c.closed {
+		c.qmu.Unlock()
+		return nil
+	}
+	c.closed = true
+	c.qmu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		c.calls.Wait()
+		c.qmu.Lock()
+		c.stopping = true
+		c.cond.Broadcast()
+		c.qmu.Unlock()
+		c.workers.Wait()
+		close(done)
+	}()
+	var err error
+	select {
+	case <-done:
+	case <-ctx.Done():
+		err = ctx.Err()
+		c.cancel()
+		<-done
+	}
+	c.cancel()
+	return err
+}
+
+// Stats are counters since New.
+type Stats struct {
+	Rows, Requests, Retries, Throttled, FailedRows int64
+	UncompressedBytes, CompressedBytes             int64
+}
+
+func (c *Client) Stats() Stats {
+	return Stats{
+		Rows: c.nRows.Load(), Requests: c.nRequests.Load(), Retries: c.nRetries.Load(),
+		Throttled: c.nThrottled.Load(), FailedRows: c.nFailed.Load(),
+		UncompressedBytes: c.nRaw.Load(), CompressedBytes: c.nWire.Load(),
+	}
+}
+
+// sender is the part of Client behind AppendRows. Rows wait in one queue per pipe. A fixed
+// set of workers takes a pipe off the ready list, packs what that pipe has queued into one
+// request near the 4 MB cap, sends it and retries it. A busy pipe gets bigger requests rather
+// than more goroutines; an idle one is sent at once.
+type sender struct {
+	cfg    *Config
+	zstd   *zstd.Encoder // EncodeAll is safe for concurrent use
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	qmu      sync.Mutex
+	cond     *sync.Cond // signalled when ready gains a pipe, or on stop
+	pipes    map[string]*queue
+	ready    []*queue // pipes with queued rows and a free in-flight slot, oldest first
+	closed   bool     // no new AppendRows
+	stopping bool     // workers exit once ready is empty
+	start    sync.Once
+	calls    sync.WaitGroup // AppendRows in progress
+	workers  sync.WaitGroup
+	live     atomic.Int32 // running workers, for tests
+
+	ratio atomic.Uint64 // smoothed uncompressed/compressed, float64 bits
+
+	nRows, nRequests, nRetries, nThrottled, nFailed, nRaw, nWire atomic.Int64
+}
+
+// queue is one pipe's rows waiting to be sent. Fields are guarded by sender.qmu.
+type queue struct {
+	name     string
+	chunks   []*chunk
+	inflight int
+	listed   bool // in sender.ready
+}
+
+// chunk is whole NDJSON rows from one AppendRows.
+type chunk struct {
+	data []byte
+	rows int
+	w    *waiter
+}
+
+// waiter is one AppendRows until each of its chunks is stored or has failed.
+type waiter struct {
+	ctx     context.Context
+	bufs    [][]byte // the encoded rows, one per pipe; chunks slice into them
+	pending atomic.Int32
+	mu      sync.Mutex
+	err     error
+	done    chan struct{}
+}
+
+func (s *sender) init(cfg *Config) error {
+	if cfg.NumWorkers <= 0 {
+		cfg.NumWorkers = 1
+	}
+	if cfg.MaxInflightPerPipe <= 0 {
+		cfg.MaxInflightPerPipe = 4
+	}
+	if cfg.RetryFor <= 0 {
+		cfg.RetryFor = time.Minute
+	}
+	enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedFastest))
+	if err != nil {
+		return err
+	}
+	s.cfg, s.zstd = cfg, enc
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.cond = sync.NewCond(&s.qmu)
+	s.pipes = map[string]*queue{}
+	s.ratio.Store(math.Float64bits(3)) // a usual ratio for JSON until one is measured
+	return nil
+}
+
+// begin registers one call on n pipes, named by name(i), and starts the workers on first use.
+func (c *Client) begin(n int, name func(int) string) ([]*queue, error) {
+	c.qmu.Lock()
+	defer c.qmu.Unlock()
+	if c.closed {
+		return nil, ErrClosed
+	}
+	c.start.Do(func() {
+		for range c.cfg.NumWorkers {
+			c.workers.Add(1)
+			go c.work()
+		}
+	})
+	out := make([]*queue, n)
+	for i := range out {
+		key := strings.ToUpper(name(i)) // pipe names are case-insensitive in the REST path
+		q := c.pipes[key]
+		if q == nil {
+			q = &queue{name: key}
+			c.pipes[key] = q
+		}
+		out[i] = q
+	}
+	c.calls.Add(1)
+	return out, nil
+}
+
+func (c *Client) enqueue(q *queue, chunks []*chunk) {
+	c.qmu.Lock()
+	q.chunks = append(q.chunks, chunks...)
+	c.list(q)
+	c.qmu.Unlock()
+}
+
+// list puts q on the ready list if it has rows and a free slot. The caller holds qmu.
+func (s *sender) list(q *queue) {
+	if !q.listed && len(q.chunks) > 0 && q.inflight < s.cfg.MaxInflightPerPipe {
+		q.listed = true
+		s.ready = append(s.ready, q)
+		s.cond.Signal()
+	}
+}
+
+func (c *Client) work() {
+	defer c.workers.Done()
+	c.live.Add(1)
+	defer c.live.Add(-1)
+	for {
+		c.qmu.Lock()
+		for len(c.ready) == 0 && !c.stopping {
+			c.cond.Wait()
+		}
+		if len(c.ready) == 0 {
+			c.qmu.Unlock()
+			return
+		}
+		q := c.ready[0]
+		c.ready[0] = nil
+		c.ready = c.ready[1:]
+		q.listed = false
+		r := q.take(c.target())
+		if r != nil {
+			q.inflight++
+		}
+		c.list(q) // more rows left: another worker can take them now
+		c.qmu.Unlock()
+		if r == nil {
+			continue
+		}
+
+		if c.ctx.Err() != nil {
+			c.fail(r, ErrClosed)
+		} else {
+			c.send(q.name, r)
+		}
+
+		c.qmu.Lock()
+		q.inflight--
+		c.list(q)
+		c.qmu.Unlock()
+	}
+}
+
+// take removes up to size bytes of chunks, always at least one, and drops chunks whose caller
+// has given up. The caller holds qmu.
+func (q *queue) take(size int) *request {
+	r := &request{}
+	for len(q.chunks) > 0 {
+		ch := q.chunks[0]
+		if err := ch.w.ctx.Err(); err != nil {
+			q.pop()
+			ch.w.finish(err)
+			continue
+		}
+		if len(r.chunks) > 0 && r.size+len(ch.data) > size {
+			break
+		}
+		q.pop()
+		r.add(ch)
+	}
+	if len(r.chunks) == 0 {
+		return nil
+	}
+	return r
+}
+
+func (q *queue) pop() {
+	q.chunks[0] = nil
+	q.chunks = q.chunks[1:]
+}
+
+// cut splits one pipe's rows into pieces of at most size bytes on row boundaries; a row over
+// size gets a piece of its own.
+func (w *waiter) cut(data []byte, rows, size int) []*chunk {
+	if len(data) <= size {
+		return []*chunk{{data: data, rows: rows, w: w}}
+	}
+	var out []*chunk
+	for rest := data; len(rest) > 0; {
+		n := len(rest)
+		if n > size {
+			if n = bytes.LastIndexByte(rest[:size], '\n') + 1; n == 0 {
+				n = bytes.IndexByte(rest, '\n') + 1
+			}
+		}
+		out = append(out, &chunk{data: rest[:n], rows: bytes.Count(rest[:n], newline), w: w})
+		rest = rest[n:]
+	}
+	return out
+}
+
+var newline = []byte{'\n'}
+
+// finish records one chunk's outcome; the last one frees the rows and wakes AppendRows.
+func (w *waiter) finish(err error) {
+	if err != nil {
+		w.mu.Lock()
+		if w.err == nil {
+			w.err = err
+		}
+		w.mu.Unlock()
+	}
+	if w.pending.Add(-1) == 0 {
+		for _, b := range w.bufs {
+			dataPool.put(b)
+		}
+		w.bufs = nil
+		close(w.done)
+	}
+}
+
+// request is the chunks that go out in one HTTP request.
+type request struct {
+	chunks []*chunk
+	size   int
+	rows   int
+}
+
+func (r *request) add(ch *chunk) {
+	r.chunks = append(r.chunks, ch)
+	r.size += len(ch.data)
+	r.rows += ch.rows
+}
+
+func (r *request) finish(err error) {
+	for _, ch := range r.chunks {
+		ch.w.finish(err)
+	}
+}
+
+// abandoned reports whether every AppendRows waiting on r has returned.
+func (r *request) abandoned() bool {
+	for _, ch := range r.chunks {
+		if ch.w.ctx.Err() == nil {
+			return false
+		}
+	}
+	return true
+}
+
+// split halves r between chunks, or inside its one chunk on a row boundary.
+func (r *request) split() (*request, *request, bool) {
+	left, right := &request{}, &request{}
+	if len(r.chunks) > 1 {
+		half := len(r.chunks) / 2
+		for _, ch := range r.chunks[:half] {
+			left.add(ch)
+		}
+		for _, ch := range r.chunks[half:] {
+			right.add(ch)
+		}
+		return left, right, true
+	}
+	ch := r.chunks[0]
+	mid := len(ch.data) / 2
+	cut := bytes.IndexByte(ch.data[mid:], '\n') + mid + 1
+	if cut <= mid || cut >= len(ch.data) {
+		if cut = bytes.LastIndexByte(ch.data[:mid], '\n') + 1; cut == 0 {
+			return nil, nil, false
+		}
+	}
+	ch.w.pending.Add(1) // one chunk becomes two
+	a := &chunk{data: ch.data[:cut], rows: bytes.Count(ch.data[:cut], newline), w: ch.w}
+	left.add(a)
+	right.add(&chunk{data: ch.data[cut:], rows: ch.rows - a.rows, w: ch.w})
+	return left, right, true
+}
+
+func (s *sender) target() int {
+	r := math.Float64frombits(s.ratio.Load())
+	return min(int(0.9*maxPayload*r), maxRequest)
+}
+
+// observe folds one request into the smoothed ratio; a lost update under contention only
+// leaves the estimate a little stale.
+func (s *sender) observe(raw, wire int) {
+	if wire <= 0 {
+		return
+	}
+	r := max(float64(raw)/float64(wire), 1)
+	old := math.Float64frombits(s.ratio.Load())
+	s.ratio.Store(math.Float64bits(0.8*old + 0.2*r))
+}
+
+// send compresses r, splits it if it is still over the cap, and posts it.
+func (c *Client) send(pipe string, r *request) {
+	data := r.chunks[0].data
+	var joined []byte
+	if len(r.chunks) > 1 {
+		joined = dataPool.get(r.size)
+		for _, ch := range r.chunks {
+			joined = append(joined, ch.data...)
+		}
+		data = joined
+	}
+	body := c.zstd.EncodeAll(data, compPool.get(len(data)/4))
+	c.observe(len(data), len(body))
+	if joined != nil {
+		dataPool.put(joined)
+	}
+	if len(body) > maxPayload {
+		compPool.put(body)
+		left, right, ok := r.split()
+		if !ok {
+			c.fail(r, ErrTooLarge) // cannot happen while MaxRow is under maxPayload
+			return
+		}
+		c.send(pipe, left)
+		c.send(pipe, right)
+		return
+	}
+	if err := c.post(pipe, body, len(data), r); err != nil {
+		c.fail(r, fmt.Errorf("%s: %w", pipe, err))
+		return
+	}
+	c.nRows.Add(int64(r.rows))
+	c.nRequests.Add(1)
+	c.nRaw.Add(int64(len(data)))
+	c.nWire.Add(int64(len(body)))
+	r.finish(nil)
+}
+
+func (c *Client) fail(r *request, err error) {
+	c.nFailed.Add(int64(r.rows))
+	r.finish(err)
+}
+
+// post sends one request. Every attempt has the same requestId and the next retryCount, as
+// the Elastic API asks, so Snowflake can tell a retry from new rows.
+func (c *Client) post(pipe string, body []byte, raw int, r *request) error {
+	path := fmt.Sprintf("/v2/streaming/data/databases/%s/schemas/%s/pipes/%s/channels/ELASTIC/rows",
+		url.PathEscape(c.cfg.Database), url.PathEscape(c.cfg.Schema), url.PathEscape(pipe))
+	id := requestID()
+	deadline := time.Now().Add(c.cfg.RetryFor)
+	backoff := 100 * time.Millisecond
+	stale, renewals := "", 0
+	for try := 0; ; try++ {
+		token, wait, err := c.attempt(r, path, id, try, stale, body, raw)
+		if err == nil {
+			if try == 0 { // after a failed try net/http may still be reading body
+				compPool.put(body)
+			}
+			return nil
+		}
+		var se *StatusError
+		isStatus := errors.As(err, &se)
+		switch {
+		case c.ctx.Err() != nil:
+			return fmt.Errorf("%w: %w", ErrClosed, err)
+		case isStatus && se.Status == http.StatusUnauthorized && renewals < 2:
+			stale, renewals = token, renewals+1
+			c.nRetries.Add(1)
+			continue
+		case isStatus && !retryable(se.Status):
+			return err
+		case r.abandoned():
+			return err
+		}
+		if isStatus && se.Status == http.StatusTooManyRequests {
+			c.nThrottled.Add(1)
+		}
+		wait = max(wait, backoff/2+mrand.N(backoff/2+1))
+		if time.Now().Add(wait).After(deadline) {
+			return fmt.Errorf("gave up after %d tries: %w", try+1, err)
+		}
+		c.nRetries.Add(1)
+		t := time.NewTimer(wait)
+		select {
+		case <-t.C:
+		case <-c.ctx.Done():
+			t.Stop()
+			return fmt.Errorf("%w: %w", ErrClosed, err)
+		}
+		backoff = min(backoff*2, 5*time.Second)
+	}
+}
+
+// retryable is the statuses that can succeed if sent again; other 4xx fail the same way.
+func retryable(status int) bool {
+	return status == http.StatusRequestTimeout || status == http.StatusTooManyRequests || status >= 500
+}
+
+// attempt sends one try and returns the token it used and how long Snowflake asked to wait.
+// The try is cut off when every AppendRows waiting on r has returned, so a stalled request
+// does not hold a worker for its whole timeout.
+func (c *Client) attempt(r *request, path, id string, try int, stale string, body []byte, raw int) (string, time.Duration, error) {
+	ctx, cancel := context.WithTimeout(c.ctx, 30*time.Second)
+	defer cancel()
+	for _, ch := range r.chunks {
+		stop := context.AfterFunc(ch.w.ctx, func() {
+			if r.abandoned() {
+				cancel()
+			}
+		})
+		defer stop()
+	}
+	base, token, err := c.ingestToken(ctx, stale)
+	if err != nil {
+		return "", 0, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		fmt.Sprintf("%s%s?requestId=%s&retryCount=%d", base, path, id, try), bytes.NewReader(body))
+	if err != nil {
+		return token, 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/x-ndjson")
+	req.Header.Set("Content-Encoding", "zstd")
+	// Snowflake answers 400 "Unsupported Accept header null" without it.
+	req.Header.Set("Accept", "application/json")
+	// Not in the REST docs; the Rust SDK sends it so the server can size the rows up front.
+	req.Header.Set("x-snowflake-uncompressed-content-length", strconv.Itoa(raw))
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return token, 0, fmt.Errorf("post rows: %w", err)
+	}
+	wait := retryAfter(resp.Header.Get("Retry-After"))
+	_, err = readBody(resp)
+	return token, wait, err
+}
+
+// retryAfter reads Retry-After as seconds or an HTTP date.
+func retryAfter(v string) time.Duration {
+	if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
+		return time.Duration(secs) * time.Second
+	}
+	if t, err := http.ParseTime(v); err == nil {
+		return max(time.Until(t), 0)
+	}
+	return 0
+}
+
+// requestID is a random UUID (version 4).
+func requestID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b) // crypto/rand.Read never fails
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// bufPool recycles byte slices; buffers over 32 MB are left to the GC.
+type bufPool struct{ p sync.Pool }
+
+var dataPool, compPool bufPool
+
+func (bp *bufPool) get(n int) []byte {
+	if v, ok := bp.p.Get().(*[]byte); ok && cap(*v) >= n {
+		return (*v)[:0]
+	}
+	return make([]byte, 0, n)
+}
+
+func (bp *bufPool) put(b []byte) {
+	if cap(b) > 0 && cap(b) <= 32<<20 {
+		bp.p.Put(&b)
+	}
+}
