@@ -46,8 +46,6 @@ type Config struct {
 	// The pool is fixed for the life of the client: more load makes requests bigger and queues
 	// longer, never more goroutines. Default 1.
 	NumWorkers int
-	// MaxInflightPerPipe keeps one busy pipe from taking every worker. Default 4.
-	MaxInflightPerPipe int
 	// RetryFor bounds how long one request is retried. A request also stops once every
 	// AppendRows waiting on it has returned. Default 1 minute.
 	RetryFor time.Duration

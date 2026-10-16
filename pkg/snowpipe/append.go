@@ -237,9 +237,6 @@ func (s *sender) init(cfg *Config) error {
 	if cfg.NumWorkers <= 0 {
 		cfg.NumWorkers = 1
 	}
-	if cfg.MaxInflightPerPipe <= 0 {
-		cfg.MaxInflightPerPipe = 4
-	}
 	if cfg.RetryFor <= 0 {
 		cfg.RetryFor = time.Minute
 	}
@@ -290,8 +287,12 @@ func (c *Client) enqueue(q *queue, chunks []*chunk) {
 }
 
 // list puts q on the ready list if it has rows and a free slot. The caller holds qmu.
+// perPipe is how many workers one pipe may use at once: half the pool, at least one, so a
+// pipe with a backlog drains on several workers while the others still get the rest.
+func (s *sender) perPipe() int { return max(1, s.cfg.NumWorkers/2) }
+
 func (s *sender) list(q *queue) {
-	if !q.listed && len(q.chunks) > 0 && q.inflight < s.cfg.MaxInflightPerPipe {
+	if !q.listed && len(q.chunks) > 0 && q.inflight < s.perPipe() {
 		q.listed = true
 		s.ready = append(s.ready, q)
 		s.cond.Signal()

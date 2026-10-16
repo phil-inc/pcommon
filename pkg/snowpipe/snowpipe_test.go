@@ -338,7 +338,7 @@ func TestRowsThatDoNotCompressAreSplitUnderTheCap(t *testing.T) {
 // worker goroutines that does not grow with the callers.
 func TestManyCallersShareAFixedNumberOfWorkers(t *testing.T) {
 	f := &fake{delay: 10 * time.Millisecond}
-	c := newClient(t, f, func(cfg *Config) { cfg.NumWorkers = 3; cfg.MaxInflightPerPipe = 2 })
+	c := newClient(t, f, func(cfg *Config) { cfg.NumWorkers = 4 }) // 2 per pipe
 	base := runtime.NumGoroutine()
 
 	const callers, pipes, calls, perCall = 40, 8, 10, 25
@@ -391,19 +391,19 @@ func TestManyCallersShareAFixedNumberOfWorkers(t *testing.T) {
 	if len(seen) != callers*calls*perCall {
 		t.Fatalf("stored %d rows, want %d", len(seen), callers*calls*perCall)
 	}
-	if maxLive.Load() != 3 {
-		t.Errorf("workers peaked at %d, want exactly the 3 configured", maxLive.Load())
+	if maxLive.Load() != 4 {
+		t.Errorf("workers peaked at %d, want exactly the 4 configured", maxLive.Load())
 	}
 	// callers + sampler + workers + a few for HTTP/2 and the test server.
-	if limit := int64(base + callers + 1 + 3 + 20); maxGoroutines.Load() > limit {
+	if limit := int64(base + callers + 1 + 4 + 20); maxGoroutines.Load() > limit {
 		t.Errorf("goroutines peaked at %d, want at most %d", maxGoroutines.Load(), limit)
 	}
-	if p := f.peak.Load(); p > 3 {
-		t.Errorf("%d requests in flight, more than the 3 workers", p)
+	if p := f.peak.Load(); p > 4 {
+		t.Errorf("%d requests in flight, more than the 4 workers", p)
 	}
 	f.pipePeak.Range(func(k, v any) bool {
 		if n := v.(*atomic.Int64).Load(); n > 2 {
-			t.Errorf("%v had %d requests in flight, over MaxInflightPerPipe 2", k, n)
+			t.Errorf("%v had %d requests in flight, over half of 4 workers", k, n)
 		}
 		return true
 	})
@@ -472,10 +472,10 @@ func TestTheDefaultPoolIsOneWorker(t *testing.T) {
 	}
 }
 
-// One busy pipe gets at most MaxInflightPerPipe workers, even when more are idle.
+// One busy pipe gets at most half the workers, even when more are idle.
 func TestOneBusyPipeCannotTakeEveryWorker(t *testing.T) {
 	f := &fake{delay: 20 * time.Millisecond}
-	c := newClient(t, f, func(cfg *Config) { cfg.NumWorkers = 6; cfg.MaxInflightPerPipe = 2 })
+	c := newClient(t, f, func(cfg *Config) { cfg.NumWorkers = 6 }) // 3 per pipe
 	var wg sync.WaitGroup
 	for w := range 30 {
 		wg.Add(1)
@@ -489,8 +489,8 @@ func TestOneBusyPipeCannotTakeEveryWorker(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if v, ok := f.pipePeak.Load("HOT"); !ok || v.(*atomic.Int64).Load() != 2 {
-		t.Fatalf("HOT peaked at %v requests in flight, want 2", v)
+	if v, ok := f.pipePeak.Load("HOT"); !ok || v.(*atomic.Int64).Load() != 3 {
+		t.Fatalf("HOT peaked at %v requests in flight, want 3", v)
 	}
 }
 
