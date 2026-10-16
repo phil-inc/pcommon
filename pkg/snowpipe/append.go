@@ -11,6 +11,7 @@ import (
 	mrand "math/rand/v2"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,6 +44,47 @@ var (
 	ErrClosed = errors.New("snowpipe: client closed")
 )
 
+// TableError is the rows of one pipe that a call did not store, and why. AppendRows and
+// AppendTables return one per failed pipe, joined with errors.Join; TableErrors lists them.
+// It never holds row values.
+type TableError struct {
+	Pipe string
+	Rows int // rows of this pipe in the call that may not be stored
+	Err  error
+}
+
+func (e *TableError) Error() string {
+	return fmt.Sprintf("%s: %d rows not stored: %v", e.Pipe, e.Rows, e.Err)
+}
+
+func (e *TableError) Unwrap() error { return e.Err }
+
+// TableErrors returns every *TableError in err, which may be a joined or wrapped error.
+func TableErrors(err error) []*TableError {
+	var out []*TableError
+	var walk func(error)
+	walk = func(err error) {
+		if te, ok := err.(*TableError); ok {
+			out = append(out, te)
+			return
+		}
+		switch u := err.(type) {
+		case interface{ Unwrap() []error }:
+			for _, e := range u.Unwrap() {
+				walk(e)
+			}
+		case interface{ Unwrap() error }:
+			if e := u.Unwrap(); e != nil {
+				walk(e)
+			}
+		}
+	}
+	if err != nil {
+		walk(err)
+	}
+	return out
+}
+
 // AppendRows stores the rows in the pipe's Elastic channel and returns once Snowflake has
 // acknowledged every one of them. The pipe is in Config.Database and Config.Schema.
 //
@@ -57,7 +99,12 @@ func (c *Client) AppendRows(ctx context.Context, pipe string, rows []map[string]
 // AppendTables is AppendRows for several pipes at once. It queues every pipe's rows and then
 // waits for all of them, so a caller that writes many tables needs no goroutines of its own.
 // Every row is encoded and checked before any is sent.
-func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[string]any) error {
+func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[string]any) (err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("snowpipe: internal error: %v", p)
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -72,7 +119,6 @@ func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[strin
 			dataPool.put(e.data)
 		}
 	}
-	total := 0
 	for pipe, rows := range tables {
 		if len(rows) == 0 {
 			continue
@@ -80,10 +126,9 @@ func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[strin
 		data, err := encode(rows)
 		if err != nil {
 			release()
-			return fmt.Errorf("%s: %w", pipe, err)
+			return &TableError{Pipe: strings.ToUpper(pipe), Rows: len(rows), Err: err}
 		}
 		all = append(all, encoded{pipe, data, len(rows)})
-		total += len(rows)
 	}
 	if len(all) == 0 {
 		return nil
@@ -110,7 +155,7 @@ func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[strin
 	n := 0
 	for i, e := range all {
 		w.bufs = append(w.bufs, e.data)
-		cuts[i] = w.cut(e.data, e.rows, c.target())
+		cuts[i] = w.cut(queues[i].name, e.data, e.rows, c.target())
 		n += len(cuts[i])
 	}
 	w.pending.Store(int32(n))
@@ -120,10 +165,7 @@ func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[strin
 
 	select {
 	case <-w.done:
-		if w.err != nil {
-			return fmt.Errorf("append %d rows: %w", total, w.err)
-		}
-		return nil
+		return w.result()
 	case <-ctx.Done():
 		return ctx.Err() // chunks not yet sent are dropped; one in flight may still land
 	}
@@ -131,11 +173,20 @@ func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[strin
 
 // encode writes the rows as NDJSON in the caller's goroutine, so encoding scales with callers
 // and costs no worker time.
-func encode(rows []map[string]any) ([]byte, error) {
+func encode(rows []map[string]any) (_ []byte, err error) {
 	buf := bytes.NewBuffer(dataPool.get(len(rows) * 256))
+	row := 0
+	defer func() {
+		// a value's MarshalJSON can panic; the panic value is not shown, it can quote the row
+		if p := recover(); p != nil {
+			dataPool.put(buf.Bytes())
+			err = fmt.Errorf("encode row %d: panic in a value's JSON encoding", row)
+		}
+	}()
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(false) // <, > and & are valid JSON; escaping them only costs bytes
 	for i, r := range rows {
+		row = i
 		if r == nil {
 			dataPool.put(buf.Bytes())
 			return nil, fmt.Errorf("row %d is nil", i)
@@ -143,11 +194,11 @@ func encode(rows []map[string]any) ([]byte, error) {
 		before := buf.Len()
 		if err := enc.Encode(r); err != nil {
 			dataPool.put(buf.Bytes())
-			return nil, fmt.Errorf("encode row: %w", err)
+			return nil, fmt.Errorf("encode row %d: %w", i, err)
 		}
 		if n := buf.Len() - before; n > MaxRow {
 			dataPool.put(buf.Bytes())
-			return nil, fmt.Errorf("a row of %d bytes is over the request limit: %w", n, ErrTooLarge)
+			return nil, fmt.Errorf("row %d is %d bytes, over the request limit: %w", i, n, ErrTooLarge)
 		}
 	}
 	return buf.Bytes(), nil
@@ -244,8 +295,9 @@ type queue struct {
 	listed   bool // in sender.ready
 }
 
-// chunk is whole NDJSON rows from one AppendRows.
+// chunk is whole NDJSON rows of one pipe from one AppendRows.
 type chunk struct {
+	pipe string
 	data []byte
 	rows int
 	w    *waiter
@@ -259,8 +311,27 @@ type waiter struct {
 	room    *room
 	pending atomic.Int32
 	mu      sync.Mutex
-	err     error
+	failed  map[string]*TableError // by pipe
 	done    chan struct{}
+}
+
+// result is nil, or one *TableError per pipe that failed, in pipe order.
+func (w *waiter) result() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.failed) == 0 {
+		return nil
+	}
+	pipes := make([]string, 0, len(w.failed))
+	for p := range w.failed {
+		pipes = append(pipes, p)
+	}
+	sort.Strings(pipes)
+	errs := make([]error, len(pipes))
+	for i, p := range pipes {
+		errs[i] = w.failed[p]
+	}
+	return errors.Join(errs...)
 }
 
 func (s *sender) init(cfg *Config) error {
@@ -379,7 +450,7 @@ func (s *sender) take(q *queue, size int) *request {
 		if err := ch.w.ctx.Err(); err != nil {
 			q.pop()
 			s.nFailed.Add(int64(ch.rows))
-			ch.w.finish(err)
+			ch.finish(err)
 			continue
 		}
 		if len(r.chunks) > 0 && r.size+len(ch.data) > size {
@@ -401,9 +472,9 @@ func (q *queue) pop() {
 
 // cut splits one pipe's rows into pieces of at most size bytes on row boundaries; a row over
 // size gets a piece of its own.
-func (w *waiter) cut(data []byte, rows, size int) []*chunk {
+func (w *waiter) cut(pipe string, data []byte, rows, size int) []*chunk {
 	if len(data) <= size {
-		return []*chunk{{data: data, rows: rows, w: w}}
+		return []*chunk{{pipe: pipe, data: data, rows: rows, w: w}}
 	}
 	var out []*chunk
 	for rest := data; len(rest) > 0; {
@@ -413,7 +484,7 @@ func (w *waiter) cut(data []byte, rows, size int) []*chunk {
 				n = bytes.IndexByte(rest, '\n') + 1
 			}
 		}
-		out = append(out, &chunk{data: rest[:n], rows: bytes.Count(rest[:n], newline), w: w})
+		out = append(out, &chunk{pipe: pipe, data: rest[:n], rows: bytes.Count(rest[:n], newline), w: w})
 		rest = rest[n:]
 	}
 	return out
@@ -421,12 +492,19 @@ func (w *waiter) cut(data []byte, rows, size int) []*chunk {
 
 var newline = []byte{'\n'}
 
-// finish records one chunk's outcome; the last one frees the rows and wakes AppendRows.
-func (w *waiter) finish(err error) {
+// finish records the chunk's outcome on its call; the last chunk frees the rows and wakes
+// AppendRows.
+func (ch *chunk) finish(err error) {
+	w := ch.w
 	if err != nil {
 		w.mu.Lock()
-		if w.err == nil {
-			w.err = err
+		if w.failed == nil {
+			w.failed = map[string]*TableError{}
+		}
+		if te := w.failed[ch.pipe]; te != nil {
+			te.Rows += ch.rows
+		} else {
+			w.failed[ch.pipe] = &TableError{Pipe: ch.pipe, Rows: ch.rows, Err: err}
 		}
 		w.mu.Unlock()
 	}
@@ -442,9 +520,10 @@ func (w *waiter) finish(err error) {
 
 // request is the chunks that go out in one HTTP request.
 type request struct {
-	chunks []*chunk
-	size   int
-	rows   int
+	chunks   []*chunk
+	size     int
+	rows     int
+	finished bool // its chunks are finished; only the worker sending it touches this
 }
 
 func (r *request) add(ch *chunk) {
@@ -454,8 +533,12 @@ func (r *request) add(ch *chunk) {
 }
 
 func (r *request) finish(err error) {
+	if r.finished {
+		return
+	}
+	r.finished = true
 	for _, ch := range r.chunks {
-		ch.w.finish(err)
+		ch.finish(err)
 	}
 }
 
@@ -480,6 +563,7 @@ func (r *request) split() (*request, *request, bool) {
 		for _, ch := range r.chunks[half:] {
 			right.add(ch)
 		}
+		r.finished = true // its chunks now live in left and right, which finish them
 		return left, right, true
 	}
 	ch := r.chunks[0]
@@ -491,9 +575,10 @@ func (r *request) split() (*request, *request, bool) {
 		}
 	}
 	ch.w.pending.Add(1) // one chunk becomes two
-	a := &chunk{data: ch.data[:cut], rows: bytes.Count(ch.data[:cut], newline), w: ch.w}
+	a := &chunk{pipe: ch.pipe, data: ch.data[:cut], rows: bytes.Count(ch.data[:cut], newline), w: ch.w}
 	left.add(a)
-	right.add(&chunk{data: ch.data[cut:], rows: ch.rows - a.rows, w: ch.w})
+	right.add(&chunk{pipe: ch.pipe, data: ch.data[cut:], rows: ch.rows - a.rows, w: ch.w})
+	r.finished = true // its chunks now live in left and right, which finish them
 	return left, right, true
 }
 
@@ -513,8 +598,14 @@ func (s *sender) observe(raw, wire int) {
 	s.ratio.Store(math.Float64bits(0.8*old + 0.2*r))
 }
 
-// send compresses r, splits it if it is still over the cap, and posts it.
+// send compresses r, splits it if it is still over the cap, and posts it. A panic fails r's
+// rows with an error instead of stopping the worker or the process.
 func (c *Client) send(pipe string, r *request) {
+	defer func() {
+		if p := recover(); p != nil {
+			c.fail(r, fmt.Errorf("snowpipe: internal error: %v", p))
+		}
+	}()
 	data := r.chunks[0].data
 	var joined []byte
 	if len(r.chunks) > 1 {
@@ -541,7 +632,7 @@ func (c *Client) send(pipe string, r *request) {
 		return
 	}
 	if err := c.post(pipe, body, len(data), r); err != nil {
-		c.fail(r, fmt.Errorf("%s: %w", pipe, err))
+		c.fail(r, err)
 		return
 	}
 	c.nRows.Add(int64(r.rows))
@@ -552,6 +643,9 @@ func (c *Client) send(pipe string, r *request) {
 }
 
 func (c *Client) fail(r *request, err error) {
+	if r.finished {
+		return
+	}
 	c.nFailed.Add(int64(r.rows))
 	r.finish(err)
 }

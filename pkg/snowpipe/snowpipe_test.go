@@ -346,6 +346,89 @@ func TestAnAppendErrorCarriesTheCodeButNotSnowflakesMessage(t *testing.T) {
 	}
 }
 
+// pipeStatus fails every append to one pipe with status and accepts the others.
+type pipeStatus struct {
+	next   http.RoundTripper
+	pipe   string
+	status int
+}
+
+func (p pipeStatus) RoundTrip(r *http.Request) (*http.Response, error) {
+	if strings.Contains(r.URL.Path, "/pipes/"+p.pipe+"/") {
+		return &http.Response{StatusCode: p.status, Body: io.NopCloser(strings.NewReader(`{"code":"ERR_TEST","message":"row is bad"}`)), Header: http.Header{}, Request: r}, nil
+	}
+	return p.next.RoundTrip(r)
+}
+
+// A caller that writes several tables learns which ones failed, how many rows and why, so it
+// can name the failed rows by their own ids.
+func TestEachFailedPipeIsReportedWithItsRowsAndReason(t *testing.T) {
+	f := &fake{}
+	c := newClient(t, f)
+	c.http.Transport = pipeStatus{next: c.http.Transport, pipe: "BAD", status: http.StatusForbidden}
+	err := c.AppendTables(context.Background(), map[string][]map[string]any{
+		"good": {{"id": "g1"}},
+		"bad":  {{"id": "b1"}, {"id": "b2"}},
+	})
+	tes := TableErrors(err)
+	if len(tes) != 1 || tes[0].Pipe != "BAD" || tes[0].Rows != 2 {
+		t.Fatalf("table errors = %+v, err = %v; want BAD with 2 rows", tes, err)
+	}
+	var se *StatusError
+	if !errors.As(err, &se) || se.Status != http.StatusForbidden {
+		t.Errorf("err = %v, want the 403 reachable with errors.As", err)
+	}
+	if len(f.stored()["GOOD"]) != 1 {
+		t.Errorf("the good table was not stored")
+	}
+	if strings.Contains(err.Error(), "b1") || strings.Contains(err.Error(), "row is bad") {
+		t.Errorf("err quotes a row or Snowflake's message: %v", err)
+	}
+}
+
+type panicky struct{}
+
+func (panicky) MarshalJSON() ([]byte, error) { panic("secret value") }
+
+// panicTransport panics on the first rows request, like a bug in the HTTP stack.
+type panicTransport struct {
+	next  http.RoundTripper
+	fired atomic.Bool
+}
+
+func (p *panicTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if strings.Contains(r.URL.Path, "/rows") && p.fired.CompareAndSwap(false, true) {
+		panic("transport bug")
+	}
+	return p.next.RoundTrip(r)
+}
+
+// The client never panics: a panic while encoding or sending becomes an error, the worker keeps
+// running, and the next call works.
+func TestAPanicBecomesAnErrorAndTheClientKeepsWorking(t *testing.T) {
+	f := &fake{}
+	c := newClient(t, f)
+
+	err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "1"}, {"id": "2", "v": panicky{}}})
+	if err == nil || !strings.Contains(err.Error(), "row 1") || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("encode panic: err = %v, want an error naming row 1 and not the value", err)
+	}
+
+	c.http.Transport = &panicTransport{next: c.http.Transport}
+	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "3"}}); err == nil {
+		t.Fatal("send panic: want an error")
+	}
+	if c.live.Load() != 1 {
+		t.Fatalf("%d workers running after a panic, want 1", c.live.Load())
+	}
+	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "4"}}); err != nil {
+		t.Fatalf("after a panic: %v", err)
+	}
+	if n := c.room.held(); n != 0 {
+		t.Errorf("%d bytes held after the panic", n)
+	}
+}
+
 func TestAnOversizedRowIsTooLargeAndNothingIsSent(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)

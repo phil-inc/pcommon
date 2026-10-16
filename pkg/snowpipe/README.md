@@ -1,7 +1,7 @@
 ## Snowpipe Streaming Implementation
 A client for Snowpipe Streaming (high-performance architecture) over its REST API. Rows go to each pipe's Elastic Channel. `AppendRows` and `AppendTables` return once Snowflake has stored the rows. Retries, token renewal, compression and request sizing happen inside.
 
-Delivery is at-least-once: a retry can store a row twice, so give rows a stable id.
+Delivery is at-least-once: a retry can store a row twice, so give rows a stable id. The client does not panic: failures come back as errors, one `*TableError` per failed pipe, and errors never hold row values.
 
 ## Prerequisites
 * Snowflake account, user and unencrypted RSA private key (PKCS#8 or PKCS#1)
@@ -23,6 +23,7 @@ package main
 
 import (
 	"context"
+	"log"
 
 	"github.com/phil-inc/pcommon/pkg/snowpipe"
 )
@@ -47,7 +48,10 @@ func main() {
 		"RX_COMMENT": {{"id": "c1", "operation_type": "insert"}},
 	})
 	if err != nil {
-		panic(err) // some rows may not be stored; retrying can duplicate the others
+		// some rows may not be stored; retrying can duplicate the others
+		for _, te := range snowpipe.TableErrors(err) {
+			log.Printf("%s: %d rows not stored: %v", te.Pipe, te.Rows, te.Err)
+		}
 	}
 }
 ```
