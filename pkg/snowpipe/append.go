@@ -56,9 +56,6 @@ func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[strin
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if c.cfg.Database == "" || c.cfg.Schema == "" {
-		return errors.New("snowpipe: Database and Schema are required to append")
-	}
 	type encoded struct {
 		pipe string
 		data []byte

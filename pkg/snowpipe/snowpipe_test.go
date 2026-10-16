@@ -306,12 +306,15 @@ func TestBadInputFailsBeforeAnythingIsSent(t *testing.T) {
 			t.Errorf("%s: want an error", name)
 		}
 	}
-	noSchema := newClient(t, f, func(cfg *Config) { cfg.Database, cfg.Schema = "", "" })
-	if err := noSchema.AppendRows(context.Background(), "T", []map[string]any{{"id": "1"}}); err == nil || !strings.Contains(err.Error(), "Database") {
-		t.Errorf("no Database or Schema: err = %v, want it to say so", err)
-	}
-	if _, err := New(Config{PrivateKey: testPEM(t)}); err == nil {
-		t.Error("no Account or User: want an error")
+	for _, cfg := range []Config{
+		{Account: "a", User: "u", Database: "DB"},
+		{Account: "a", User: "u", Schema: "SC"},
+		{Database: "DB", Schema: "SC"},
+	} {
+		cfg.PrivateKey = testPEM(t)
+		if _, err := New(cfg); err == nil || !strings.Contains(err.Error(), "required") {
+			t.Errorf("New(%+v): err = %v, want the missing field named", cfg, err)
+		}
 	}
 	if f.count() != 0 {
 		t.Errorf("%d requests sent for bad input", f.count())
@@ -598,7 +601,7 @@ func TestRetryAfterReadsSecondsAndDates(t *testing.T) {
 }
 
 func TestJWTIsSignedForTheAccountUser(t *testing.T) {
-	c, err := New(Config{Account: "xy12345.us-east-1", User: "loader", PrivateKey: testPEM(t)})
+	c, err := New(Config{Account: "xy12345.us-east-1", User: "loader", PrivateKey: testPEM(t), Database: "DB", Schema: "SC"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -671,7 +674,7 @@ func TestQueryWaitsForARunningStatementAndReadsEveryPartition(t *testing.T) {
 	})
 	srv := httptest.NewTLSServer(mux)
 	defer srv.Close()
-	c, err := New(Config{Account: "a", User: "u", PrivateKey: testPEM(t), Warehouse: "WH", BaseURL: srv.URL, HTTPClient: srv.Client()})
+	c, err := New(Config{Account: "a", User: "u", PrivateKey: testPEM(t), Database: "DB", Schema: "SC", Warehouse: "WH", BaseURL: srv.URL, HTTPClient: srv.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -691,7 +694,7 @@ func TestQueryReportsTheSQLError(t *testing.T) {
 		fmt.Fprint(w, `{"code": "002003", "message": "Schema 'SC' does not exist"}`)
 	}))
 	defer srv.Close()
-	c, err := New(Config{Account: "a", User: "u", PrivateKey: testPEM(t), BaseURL: srv.URL, HTTPClient: srv.Client()})
+	c, err := New(Config{Account: "a", User: "u", PrivateKey: testPEM(t), Database: "DB", Schema: "SC", BaseURL: srv.URL, HTTPClient: srv.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}

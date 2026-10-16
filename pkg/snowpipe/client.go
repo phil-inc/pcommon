@@ -26,7 +26,8 @@ import (
 	"time"
 )
 
-// Config is one Snowflake account, user and target schema.
+// Config is one Snowflake account, user and target schema. A Client writes to that one
+// schema; use one Client per schema.
 type Config struct {
 	Account    string // the host is <Account>.snowflakecomputing.com
 	User       string
@@ -82,8 +83,8 @@ func New(cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Account == "" || cfg.User == "" {
-		return nil, errors.New("snowpipe: Account and User are required")
+	if cfg.Account == "" || cfg.User == "" || cfg.Database == "" || cfg.Schema == "" {
+		return nil, errors.New("snowpipe: Account, User, Database and Schema are required")
 	}
 	der, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
 	if err != nil {
