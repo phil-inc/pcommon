@@ -56,6 +56,9 @@ func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[strin
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if c.cfg.Database == "" || c.cfg.Schema == "" {
+		return errors.New("snowpipe: Database and Schema are required to append")
+	}
 	type encoded struct {
 		pipe string
 		data []byte
@@ -121,7 +124,11 @@ func encode(rows []map[string]any) ([]byte, error) {
 	buf := bytes.NewBuffer(dataPool.get(len(rows) * 256))
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(false) // <, > and & are valid JSON; escaping them only costs bytes
-	for _, r := range rows {
+	for i, r := range rows {
+		if r == nil {
+			dataPool.put(buf.Bytes())
+			return nil, fmt.Errorf("row %d is nil", i)
+		}
 		before := buf.Len()
 		if err := enc.Encode(r); err != nil {
 			dataPool.put(buf.Bytes())
@@ -165,15 +172,24 @@ func (c *Client) Close(ctx context.Context) error {
 		<-done
 	}
 	c.cancel()
+	if c.ownHTTP {
+		c.http.CloseIdleConnections()
+	}
 	return err
 }
 
 // Stats are counters since New.
 type Stats struct {
-	Rows, Requests, Retries, Throttled, FailedRows int64
-	UncompressedBytes, CompressedBytes             int64
+	Rows              int64 // rows Snowflake stored
+	Requests          int64 // requests Snowflake stored
+	Retries           int64 // tries after the first, including token renewals
+	Throttled         int64 // 429 responses
+	FailedRows        int64 // rows that failed, or were dropped because their caller gave up
+	UncompressedBytes int64 // NDJSON bytes of stored requests
+	CompressedBytes   int64 // bytes sent for stored requests
 }
 
+// Stats returns the counters. It is safe to call at any time, including after Close.
 func (c *Client) Stats() Stats {
 	return Stats{
 		Rows: c.nRows.Load(), Requests: c.nRequests.Load(), Retries: c.nRetries.Load(),
@@ -286,11 +302,11 @@ func (c *Client) enqueue(q *queue, chunks []*chunk) {
 	c.qmu.Unlock()
 }
 
-// list puts q on the ready list if it has rows and a free slot. The caller holds qmu.
 // perPipe is how many workers one pipe may use at once: half the pool, at least one, so a
 // pipe with a backlog drains on several workers while the others still get the rest.
 func (s *sender) perPipe() int { return max(1, s.cfg.NumWorkers/2) }
 
+// list puts q on the ready list if it has rows and a free slot. The caller holds qmu.
 func (s *sender) list(q *queue) {
 	if !q.listed && len(q.chunks) > 0 && q.inflight < s.perPipe() {
 		q.listed = true
@@ -316,7 +332,7 @@ func (c *Client) work() {
 		c.ready[0] = nil
 		c.ready = c.ready[1:]
 		q.listed = false
-		r := q.take(c.target())
+		r := c.take(q, c.target())
 		if r != nil {
 			q.inflight++
 		}
@@ -339,14 +355,15 @@ func (c *Client) work() {
 	}
 }
 
-// take removes up to size bytes of chunks, always at least one, and drops chunks whose caller
-// has given up. The caller holds qmu.
-func (q *queue) take(size int) *request {
+// take removes up to size bytes of q's chunks, always at least one, and drops chunks whose
+// caller has given up. The caller holds qmu.
+func (s *sender) take(q *queue, size int) *request {
 	r := &request{}
 	for len(q.chunks) > 0 {
 		ch := q.chunks[0]
 		if err := ch.w.ctx.Err(); err != nil {
 			q.pop()
+			s.nFailed.Add(int64(ch.rows))
 			ch.w.finish(err)
 			continue
 		}
@@ -614,6 +631,10 @@ func (c *Client) attempt(r *request, path, id string, try int, stale string, bod
 	}
 	wait := retryAfter(resp.Header.Get("Retry-After"))
 	_, err = readBody(resp)
+	var se *StatusError
+	if errors.As(err, &se) {
+		se.Message = "" // can quote a row; the status and code are enough to act on
+	}
 	return token, wait, err
 }
 

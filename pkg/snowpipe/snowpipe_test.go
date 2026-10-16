@@ -294,6 +294,41 @@ func TestRetriesStopOnceTheCallerHasGivenUp(t *testing.T) {
 	}
 }
 
+func TestBadInputFailsBeforeAnythingIsSent(t *testing.T) {
+	f := &fake{}
+	c := newClient(t, f)
+	cases := map[string][]map[string]any{
+		"a nil row":                 {{"id": "1"}, nil},
+		"a value JSON cannot write": {{"id": "1", "v": make(chan int)}},
+	}
+	for name, rows := range cases {
+		if err := c.AppendRows(context.Background(), "T", rows); err == nil {
+			t.Errorf("%s: want an error", name)
+		}
+	}
+	noSchema := newClient(t, f, func(cfg *Config) { cfg.Database, cfg.Schema = "", "" })
+	if err := noSchema.AppendRows(context.Background(), "T", []map[string]any{{"id": "1"}}); err == nil || !strings.Contains(err.Error(), "Database") {
+		t.Errorf("no Database or Schema: err = %v, want it to say so", err)
+	}
+	if _, err := New(Config{PrivateKey: testPEM(t)}); err == nil {
+		t.Error("no Account or User: want an error")
+	}
+	if f.count() != 0 {
+		t.Errorf("%d requests sent for bad input", f.count())
+	}
+}
+
+// Snowflake's message can quote a row, and callers log errors, so it never reaches them.
+func TestAnAppendErrorCarriesTheCodeButNotSnowflakesMessage(t *testing.T) {
+	f := &fake{appendStatus: []int{400}}
+	c := newClient(t, f)
+	err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "1"}})
+	var se *StatusError
+	if !errors.As(err, &se) || se.Code != "ERR_TEST" || se.Message != "" || strings.Contains(err.Error(), "row is bad") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestAnOversizedRowIsTooLargeAndNothingIsSent(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
@@ -415,7 +450,7 @@ func TestManyCallersShareAFixedNumberOfWorkers(t *testing.T) {
 // A multi-table write: several tables in one call, with no goroutines of the caller's.
 func TestAppendTablesStoresEveryTableOrSendsNothingOnABadRow(t *testing.T) {
 	f := &fake{delay: 20 * time.Millisecond}
-	c := newClient(t, f)
+	c := newClient(t, f, func(cfg *Config) { cfg.NumWorkers = 2 })
 	tables := map[string][]map[string]any{
 		"A": {{"id": "a1"}, {"id": "a2"}},
 		"B": {{"id": "b1"}},

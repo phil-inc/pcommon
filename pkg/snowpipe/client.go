@@ -2,9 +2,9 @@
 // Every request is HTTPS with a key pair JWT the client signs itself, so there is no session
 // that can expire and leave the caller stuck.
 //
-// AppendRows is the only write call. It returns once Snowflake has stored every row, and the
-// client does the rest: request sizing, compression, a fixed set of sender goroutines, retries
-// and token renewal. See append.go.
+// AppendRows and AppendTables write rows. They return once Snowflake has stored every row,
+// and the client does the rest: request sizing, compression, a fixed pool of NumWorkers
+// goroutines, retries and token renewal. See append.go.
 package snowpipe
 
 import (
@@ -65,6 +65,7 @@ type Client struct {
 	fingerprint string
 	base        string
 	http        *http.Client
+	ownHTTP     bool // http was built here, so Close may close its idle connections
 
 	mu       sync.Mutex // guards the ingest host and the scoped token
 	ingest   string     // https://<ingest host>
@@ -80,6 +81,9 @@ func New(cfg Config) (*Client, error) {
 	key, err := parseKey(cfg.PrivateKey)
 	if err != nil {
 		return nil, err
+	}
+	if cfg.Account == "" || cfg.User == "" {
+		return nil, errors.New("snowpipe: Account and User are required")
 	}
 	der, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
 	if err != nil {
@@ -98,6 +102,7 @@ func New(cfg Config) (*Client, error) {
 	}
 	if c.http == nil {
 		c.http = &http.Client{Timeout: time.Minute, Transport: newTransport()}
+		c.ownHTTP = true
 	}
 	if err := c.sender.init(&c.cfg); err != nil {
 		return nil, err
@@ -252,7 +257,8 @@ func (c *Client) ingestToken(ctx context.Context, stale string) (base, token str
 }
 
 // StatusError is a response other than 2xx. Code is Snowflake's error code. Message is
-// Snowflake's text; for an append it can quote a row.
+// Snowflake's text. It is empty for appends, because there it can quote a row, and errors
+// get logged.
 type StatusError struct {
 	Status  int
 	Code    string
