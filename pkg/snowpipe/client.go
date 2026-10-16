@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -68,10 +67,12 @@ type Client struct {
 	http        *http.Client
 	ownHTTP     bool // http was built here, so Close may close its idle connections
 
-	mu       sync.Mutex // guards the ingest host and the scoped token
-	ingest   string     // https://<ingest host>
-	scoped   string
-	scopedAt time.Time
+	// tokenLock guards ingest, scoped and scopedAt. It is a channel, not a mutex, so a request
+	// waiting behind a slow token refresh can still give up when its context ends.
+	tokenLock chan struct{}
+	ingest    string // https://<ingest host>
+	scoped    string
+	scopedAt  time.Time
 
 	sender // the AppendRows machinery, in append.go
 }
@@ -97,6 +98,7 @@ func New(cfg Config) (*Client, error) {
 		fingerprint: "SHA256:" + base64.StdEncoding.EncodeToString(sum[:]),
 		base:        strings.TrimSuffix(cfg.BaseURL, "/"),
 		http:        cfg.HTTPClient,
+		tokenLock:   make(chan struct{}, 1),
 	}
 	if c.base == "" {
 		c.base = "https://" + cfg.Account + ".snowflakecomputing.com"
@@ -213,8 +215,12 @@ func (c *Client) hostname(ctx context.Context) (string, error) {
 // ingestToken returns the ingest base URL and a scoped token for it. stale is a token the ingest
 // host answered 401 to: it is replaced, unless another request already replaced it.
 func (c *Client) ingestToken(ctx context.Context, stale string) (base, token string, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	select {
+	case c.tokenLock <- struct{}{}:
+	case <-ctx.Done():
+		return "", "", ctx.Err()
+	}
+	defer func() { <-c.tokenLock }()
 	if c.scoped != "" && c.scoped != stale && time.Since(c.scopedAt) < scopedLife {
 		return c.ingest, c.scoped, nil
 	}

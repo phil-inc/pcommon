@@ -60,6 +60,8 @@ type fake struct {
 	appendStatus []int
 	stall        bool
 	delay        time.Duration
+	down         atomic.Bool   // every append gets 503, like an outage
+	tokenGate    chan struct{} // if set, token requests wait for it to close
 
 	inflight, peak         atomic.Int64
 	pipeInflight, pipePeak sync.Map // pipe -> *atomic.Int64
@@ -79,6 +81,13 @@ func (f *fake) handler(t *testing.T, host func() string) http.Handler {
 		fmt.Fprint(w, host())
 	})
 	mux.HandleFunc("POST /oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		if f.tokenGate != nil {
+			select {
+			case <-f.tokenGate:
+			case <-r.Context().Done():
+				return
+			}
+		}
 		if err := r.ParseForm(); err != nil || r.Form.Get("scope") != host() {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -102,6 +111,11 @@ func (f *fake) handler(t *testing.T, host func() string) http.Handler {
 			return
 		}
 		time.Sleep(f.delay)
+		if f.down.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprint(w, `{"code": "ERR_TEST", "message": "down"}`)
+			return
+		}
 		if r.Header.Get("Content-Type") != "application/x-ndjson" || r.Header.Get("Content-Encoding") != "zstd" || r.Header.Get("Accept") != "application/json" {
 			t.Errorf("headers = %v", r.Header)
 		}
@@ -529,6 +543,177 @@ func TestOneBusyPipeCannotTakeEveryWorker(t *testing.T) {
 	wg.Wait()
 	if v, ok := f.pipePeak.Load("HOT"); !ok || v.(*atomic.Int64).Load() != 3 {
 		t.Fatalf("HOT peaked at %v requests in flight, want 3", v)
+	}
+}
+
+// peakHeld samples the bytes held by calls in progress until stop is closed.
+func peakHeld(c *Client, stop <-chan struct{}) *atomic.Int64 {
+	var peak atomic.Int64
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case <-time.After(time.Millisecond):
+				if n := int64(c.room.held()); n > peak.Load() {
+					peak.Store(n)
+				}
+			}
+		}
+	}()
+	return &peak
+}
+
+// Rows held across all pipes never pass the cap: a call that would go over waits for room,
+// and gives up at its deadline.
+func TestQueuedRowsStayUnderTheCapAndCallersWaitForRoom(t *testing.T) {
+	f := &fake{delay: 30 * time.Millisecond}
+	c := newClient(t, f)
+	c.room.limit = 2 << 10 // a few calls' worth
+
+	stop := make(chan struct{})
+	peak := peakHeld(c, stop)
+	var ok, waitedOut atomic.Int64
+	var wg sync.WaitGroup
+	for w := range 30 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+			defer cancel()
+			rows := []map[string]any{{"id": fmt.Sprint(w), "v": strings.Repeat("x", 400)}}
+			switch err := c.AppendRows(ctx, fmt.Sprint("P", w%3), rows); {
+			case err == nil:
+				ok.Add(1)
+			case errors.Is(err, context.DeadlineExceeded):
+				waitedOut.Add(1)
+			default:
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	time.Sleep(200 * time.Millisecond) // let workers drop the rows of callers that left
+	close(stop)
+
+	if p := peak.Load(); p > 2<<10 {
+		t.Errorf("held %d bytes, over the %d cap", p, 2<<10)
+	}
+	if ok.Load() == 0 || waitedOut.Load() == 0 {
+		t.Errorf("%d stored, %d gave up waiting; want some of each", ok.Load(), waitedOut.Load())
+	}
+	if n := c.room.held(); n != 0 {
+		t.Errorf("%d bytes still held after every call returned", n)
+	}
+}
+
+// A call bigger than the whole cap still goes through when nothing else is queued.
+func TestACallBiggerThanTheCapIsNotStuck(t *testing.T) {
+	f := &fake{}
+	c := newClient(t, f)
+	c.room.limit = 100
+	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"v": strings.Repeat("x", 1000)}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// During an outage callers get errors at their deadline, memory and goroutines stay bounded,
+// nothing is left held afterwards, and the same client works again once Snowflake is back.
+func TestAnOutageIsBoundedAndTheClientRecovers(t *testing.T) {
+	f := &fake{}
+	c := newClient(t, f, func(cfg *Config) { cfg.NumWorkers = 2 })
+	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "warm"}}); err != nil {
+		t.Fatal(err)
+	}
+	base := runtime.NumGoroutine()
+	f.down.Store(true)
+
+	stop := make(chan struct{})
+	peak := peakHeld(c, stop)
+	var maxGoroutines atomic.Int64
+	var failed atomic.Int64
+	var wg sync.WaitGroup
+	for w := range 10 { // like 10 streams, each retrying its write until the outage ends
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 8; i++ {
+				ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+				err := c.AppendRows(ctx, fmt.Sprint("P", w%3), []map[string]any{{"id": fmt.Sprint(w, "-", i)}})
+				cancel()
+				if err == nil {
+					t.Error("an append stored during the outage")
+				}
+				failed.Add(1)
+				if n := int64(runtime.NumGoroutine()); n > maxGoroutines.Load() {
+					maxGoroutines.Store(n)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(stop)
+
+	if limit := int64(base + 10 + 1 + 10); maxGoroutines.Load() > limit {
+		t.Errorf("goroutines peaked at %d during the outage, want at most %d", maxGoroutines.Load(), limit)
+	}
+	if p := peak.Load(); p > maxQueued {
+		t.Errorf("held %d bytes during the outage", p)
+	}
+
+	f.down.Store(false)
+	deadline := time.Now().Add(5 * time.Second)
+	for c.room.held() != 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n := c.room.held(); n != 0 {
+		t.Errorf("%d bytes still held after the outage", n)
+	}
+	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "after"}}); err != nil {
+		t.Fatalf("after the outage: %v", err)
+	}
+}
+
+// A hung token endpoint must not hold callers past their deadline, and a later call works
+// once it answers again.
+func TestAHungTokenEndpointDoesNotHoldCallers(t *testing.T) {
+	f := &fake{tokenGate: make(chan struct{})}
+	c := newClient(t, f, func(cfg *Config) { cfg.NumWorkers = 2 })
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+			start := time.Now()
+			if err := c.AppendRows(ctx, "T", []map[string]any{{"id": "1"}}); !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("err = %v", err)
+			}
+			if took := time.Since(start); took > time.Second {
+				t.Errorf("returned after %v, deadline was 200ms", took)
+			}
+		}()
+	}
+	wg.Wait()
+	close(f.tokenGate)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := c.AppendRows(ctx, "T", []map[string]any{{"id": "2"}}); err != nil {
+		t.Fatalf("after the token endpoint recovered: %v", err)
+	}
+}
+
+// A request waiting behind a token refresh gives up at its own deadline, not the refresh's.
+func TestWaitingForTheTokenLockEndsAtTheDeadline(t *testing.T) {
+	c := newClient(t, &fake{})
+	c.tokenLock <- struct{}{} // a refresh in progress that never finishes
+	defer func() { <-c.tokenLock }()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if _, _, err := c.ingestToken(ctx, ""); !errors.Is(err, context.DeadlineExceeded) || time.Since(start) > time.Second {
+		t.Fatalf("err = %v after %v", err, time.Since(start))
 	}
 }
 

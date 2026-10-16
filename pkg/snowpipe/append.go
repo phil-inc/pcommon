@@ -30,6 +30,11 @@ const MaxRow = maxPayload - 64<<10
 // maxRequest bounds the uncompressed rows of one request, whatever the compression ratio.
 const maxRequest = 16 << 20
 
+// maxQueued bounds the encoded rows held for every pipe together, sent or waiting. A call
+// that would go over it waits for room, so a slow or failing Snowflake slows the callers
+// down instead of growing memory.
+const maxQueued = 64 << 20
+
 var (
 	// ErrTooLarge is a row over MaxRow, or a request Snowflake answered 413. Sending it again
 	// fails again.
@@ -83,15 +88,24 @@ func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[strin
 	if len(all) == 0 {
 		return nil
 	}
+	size := 0
+	for _, e := range all {
+		size += len(e.data)
+	}
+	if err := c.room.acquire(ctx, size); err != nil {
+		release()
+		return err
+	}
 
 	queues, err := c.begin(len(all), func(i int) string { return all[i].pipe })
 	if err != nil {
+		c.room.release(size)
 		release()
 		return err
 	}
 	defer c.calls.Done()
 
-	w := &waiter{ctx: ctx, done: make(chan struct{})}
+	w := &waiter{ctx: ctx, done: make(chan struct{}), size: size, room: &c.room}
 	cuts := make([][]*chunk, len(all))
 	n := 0
 	for i, e := range all {
@@ -217,6 +231,7 @@ type sender struct {
 	live     atomic.Int32 // running workers, for tests
 
 	ratio atomic.Uint64 // smoothed uncompressed/compressed, float64 bits
+	room  room          // bytes held by calls in progress, capped at maxQueued
 
 	nRows, nRequests, nRetries, nThrottled, nFailed, nRaw, nWire atomic.Int64
 }
@@ -240,6 +255,8 @@ type chunk struct {
 type waiter struct {
 	ctx     context.Context
 	bufs    [][]byte // the encoded rows, one per pipe; chunks slice into them
+	size    int      // bytes of bufs, held in room until the last chunk finishes
+	room    *room
 	pending atomic.Int32
 	mu      sync.Mutex
 	err     error
@@ -261,6 +278,7 @@ func (s *sender) init(cfg *Config) error {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.cond = sync.NewCond(&s.qmu)
 	s.pipes = map[string]*queue{}
+	s.room = room{limit: maxQueued, freed: make(chan struct{})}
 	s.ratio.Store(math.Float64bits(3)) // a usual ratio for JSON until one is measured
 	return nil
 }
@@ -417,6 +435,7 @@ func (w *waiter) finish(err error) {
 			dataPool.put(b)
 		}
 		w.bufs = nil
+		w.room.release(w.size)
 		close(w.done)
 	}
 }
@@ -653,6 +672,48 @@ func requestID() string {
 	b[6] = b[6]&0x0f | 0x40
 	b[8] = b[8]&0x3f | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// room is a byte budget that callers wait on. acquire blocks until n bytes fit, or ctx ends.
+// A call larger than the whole budget still runs when nothing else holds any, so it cannot
+// wait forever.
+type room struct {
+	mu    sync.Mutex
+	used  int
+	limit int
+	freed chan struct{} // closed and replaced on every release, to wake waiters
+}
+
+func (r *room) acquire(ctx context.Context, n int) error {
+	for {
+		r.mu.Lock()
+		if r.used == 0 || r.used+n <= r.limit {
+			r.used += n
+			r.mu.Unlock()
+			return nil
+		}
+		freed := r.freed
+		r.mu.Unlock()
+		select {
+		case <-freed:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (r *room) release(n int) {
+	r.mu.Lock()
+	r.used -= n
+	close(r.freed)
+	r.freed = make(chan struct{})
+	r.mu.Unlock()
+}
+
+func (r *room) held() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.used
 }
 
 // bufPool recycles byte slices; buffers over 32 MB are left to the GC.
