@@ -80,7 +80,7 @@ func (c *Client) statement(ctx context.Context, method, path string, body []byte
 		contentType = "application/json"
 		reader = bytes.NewReader(body)
 	}
-	resp, err := c.control(ctx, method, path, contentType, reader)
+	resp, err := c.auth.control(ctx, method, path, contentType, reader)
 	if err != nil {
 		return res, 0, fmt.Errorf("sql api: %w", err)
 	}

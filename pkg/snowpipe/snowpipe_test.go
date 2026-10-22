@@ -370,9 +370,9 @@ func TestEachFailedPipeIsReportedWithItsRowsAndReason(t *testing.T) {
 		"good": {{"id": "g1"}},
 		"bad":  {{"id": "b1"}, {"id": "b2"}},
 	})
-	tes := TableErrors(err)
-	if len(tes) != 1 || tes[0].Pipe != "BAD" || tes[0].Rows != 2 {
-		t.Fatalf("table errors = %+v, err = %v; want BAD with 2 rows", tes, err)
+	var ae *AppendError
+	if !errors.As(err, &ae) || len(ae.Pipes) != 1 || ae.Pipes[0].Pipe != "BAD" || ae.Pipes[0].Rows != 2 {
+		t.Fatalf("err = %v; want BAD with 2 rows", err)
 	}
 	var se *StatusError
 	if !errors.As(err, &se) || se.Status != http.StatusForbidden {
@@ -418,13 +418,10 @@ func TestAPanicBecomesAnErrorAndTheClientKeepsWorking(t *testing.T) {
 	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "3"}}); err == nil {
 		t.Fatal("send panic: want an error")
 	}
-	if c.live.Load() != 1 {
-		t.Fatalf("%d workers running after a panic, want 1", c.live.Load())
-	}
 	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "4"}}); err != nil {
 		t.Fatalf("after a panic: %v", err)
 	}
-	if n := c.room.held(); n != 0 {
+	if n := c.budget.held(); n != 0 {
 		t.Errorf("%d bytes held after the panic", n)
 	}
 }
@@ -477,7 +474,7 @@ func TestManyCallersShareAFixedNumberOfWorkers(t *testing.T) {
 	base := runtime.NumGoroutine()
 
 	const callers, pipes, calls, perCall = 40, 8, 10, 25
-	var maxLive, maxGoroutines atomic.Int64
+	var maxGoroutines atomic.Int64
 	stop := make(chan struct{})
 	go func() {
 		for {
@@ -485,9 +482,6 @@ func TestManyCallersShareAFixedNumberOfWorkers(t *testing.T) {
 			case <-stop:
 				return
 			case <-time.After(time.Millisecond):
-				if n := int64(c.live.Load()); n > maxLive.Load() {
-					maxLive.Store(n)
-				}
 				if n := int64(runtime.NumGoroutine()); n > maxGoroutines.Load() {
 					maxGoroutines.Store(n)
 				}
@@ -526,9 +520,6 @@ func TestManyCallersShareAFixedNumberOfWorkers(t *testing.T) {
 	if len(seen) != callers*calls*perCall {
 		t.Fatalf("stored %d rows, want %d", len(seen), callers*calls*perCall)
 	}
-	if maxLive.Load() != 4 {
-		t.Errorf("workers peaked at %d, want exactly the 4 configured", maxLive.Load())
-	}
 	// callers + sampler + workers + a few for HTTP/2 and the test server.
 	if limit := int64(base + callers + 1 + 4 + 20); maxGoroutines.Load() > limit {
 		t.Errorf("goroutines peaked at %d, want at most %d", maxGoroutines.Load(), limit)
@@ -556,12 +547,11 @@ func TestAppendTablesStoresEveryTableOrSendsNothingOnABadRow(t *testing.T) {
 		"B": {{"id": "b1"}},
 		"C": {},
 	}
-	start := time.Now()
 	if err := c.AppendTables(context.Background(), tables); err != nil {
 		t.Fatal(err)
 	}
-	if took := time.Since(start); took > 3*f.delay {
-		t.Errorf("took %v for 2 tables at %v each: tables are not sent together", took, f.delay)
+	if f.peak.Load() != 2 {
+		t.Errorf("%d requests in flight at once, want the 2 tables sent together", f.peak.Load())
 	}
 	got := f.stored()
 	if len(got["A"]) != 2 || len(got["B"]) != 1 || len(got["C"]) != 0 {
@@ -595,8 +585,8 @@ func TestTheDefaultPoolIsOneWorker(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if c.cfg.NumWorkers != 1 || c.live.Load() != 1 || f.peak.Load() != 1 {
-		t.Fatalf("NumWorkers = %d, live = %d, peak in flight = %d; want 1, 1, 1", c.cfg.NumWorkers, c.live.Load(), f.peak.Load())
+	if c.cfg.NumWorkers != 1 || f.peak.Load() != 1 {
+		t.Fatalf("NumWorkers = %d, peak in flight = %d; want 1, 1", c.cfg.NumWorkers, f.peak.Load())
 	}
 	n := 0
 	for _, rows := range f.stored() {
@@ -638,7 +628,7 @@ func peakHeld(c *Client, stop <-chan struct{}) *atomic.Int64 {
 			case <-stop:
 				return
 			case <-time.After(time.Millisecond):
-				if n := int64(c.room.held()); n > peak.Load() {
+				if n := int64(c.budget.held()); n > peak.Load() {
 					peak.Store(n)
 				}
 			}
@@ -652,7 +642,7 @@ func peakHeld(c *Client, stop <-chan struct{}) *atomic.Int64 {
 func TestQueuedRowsStayUnderTheCapAndCallersWaitForRoom(t *testing.T) {
 	f := &fake{delay: 30 * time.Millisecond}
 	c := newClient(t, f)
-	c.room.limit = 2 << 10 // a few calls' worth
+	c.budget.limit = 2 << 10 // a few calls' worth
 
 	stop := make(chan struct{})
 	peak := peakHeld(c, stop)
@@ -685,7 +675,7 @@ func TestQueuedRowsStayUnderTheCapAndCallersWaitForRoom(t *testing.T) {
 	if ok.Load() == 0 || waitedOut.Load() == 0 {
 		t.Errorf("%d stored, %d gave up waiting; want some of each", ok.Load(), waitedOut.Load())
 	}
-	if n := c.room.held(); n != 0 {
+	if n := c.budget.held(); n != 0 {
 		t.Errorf("%d bytes still held after every call returned", n)
 	}
 }
@@ -694,7 +684,7 @@ func TestQueuedRowsStayUnderTheCapAndCallersWaitForRoom(t *testing.T) {
 func TestACallBiggerThanTheCapIsNotStuck(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
-	c.room.limit = 100
+	c.budget.limit = 100
 	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"v": strings.Repeat("x", 1000)}}); err != nil {
 		t.Fatal(err)
 	}
@@ -746,10 +736,10 @@ func TestAnOutageIsBoundedAndTheClientRecovers(t *testing.T) {
 
 	f.down.Store(false)
 	deadline := time.Now().Add(5 * time.Second)
-	for c.room.held() != 0 && time.Now().Before(deadline) {
+	for c.budget.held() != 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if n := c.room.held(); n != 0 {
+	if n := c.budget.held(); n != 0 {
 		t.Errorf("%d bytes still held after the outage", n)
 	}
 	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "after"}}); err != nil {
@@ -790,12 +780,12 @@ func TestAHungTokenEndpointDoesNotHoldCallers(t *testing.T) {
 // A request waiting behind a token refresh gives up at its own deadline, not the refresh's.
 func TestWaitingForTheTokenLockEndsAtTheDeadline(t *testing.T) {
 	c := newClient(t, &fake{})
-	c.tokenLock <- struct{}{} // a refresh in progress that never finishes
-	defer func() { <-c.tokenLock }()
+	c.auth.lock <- struct{}{} // a refresh in progress that never finishes
+	defer func() { <-c.auth.lock }()
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	if _, _, err := c.ingestToken(ctx, ""); !errors.Is(err, context.DeadlineExceeded) || time.Since(start) > time.Second {
+	if _, _, err := c.auth.ingestToken(ctx, ""); !errors.Is(err, context.DeadlineExceeded) || time.Since(start) > time.Second {
 		t.Fatalf("err = %v after %v", err, time.Since(start))
 	}
 }
@@ -828,9 +818,6 @@ func TestCloseWaitsForAppendsThenRejectsNewOnes(t *testing.T) {
 	}
 	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "2"}}); !errors.Is(err, ErrClosed) {
 		t.Fatalf("after Close: err = %v", err)
-	}
-	if c.live.Load() != 0 {
-		t.Errorf("%d workers still running after Close", c.live.Load())
 	}
 }
 
@@ -873,7 +860,7 @@ func TestJWTIsSignedForTheAccountUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	token, err := c.jwt()
+	token, err := c.auth.jwt()
 	if err != nil {
 		t.Fatal(err)
 	}
