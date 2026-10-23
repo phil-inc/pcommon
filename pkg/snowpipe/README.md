@@ -39,7 +39,7 @@ func main() {
 		NumWorkers: 4, // sender goroutines for all pipes; default 1
 	})
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	defer client.Close(context.Background())
 

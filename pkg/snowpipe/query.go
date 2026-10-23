@@ -23,10 +23,15 @@ type sqlResult struct {
 // Query runs one statement through the SQL API (POST /api/v2/statements) and returns every row,
 // as text; a nil value is SQL NULL. args fill the ? placeholders. A statement still running
 // after the server's wait (202) is polled; the rows of a large result come in partitions.
+// Snowflake stops the statement at ctx's deadline, or after a minute without one.
 func (c *Client) Query(ctx context.Context, statement string, args ...string) ([][]*string, error) {
+	timeout := 60
+	if d, ok := ctx.Deadline(); ok {
+		timeout = max(1, int(time.Until(d).Seconds()))
+	}
 	req := map[string]any{
 		"statement": statement,
-		"timeout":   60,
+		"timeout":   timeout,
 		"database":  c.cfg.Database,
 		"schema":    c.cfg.Schema,
 	}

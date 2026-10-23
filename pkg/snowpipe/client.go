@@ -56,7 +56,8 @@ type Client struct {
 	workers sync.WaitGroup
 }
 
-// New checks the config and parses the key. It sends no request; Connect does.
+// New checks the config, parses the key and starts the workers; Close stops them. It sends no
+// request; Connect does.
 func New(cfg Config) (*Client, error) {
 	if cfg.Account == "" || cfg.User == "" || cfg.Database == "" || cfg.Schema == "" {
 		return nil, errors.New("snowpipe: Account, User, Database and Schema are required")

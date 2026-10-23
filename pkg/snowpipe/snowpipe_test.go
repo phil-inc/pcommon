@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -159,10 +160,32 @@ func (f *fake) handler(t *testing.T, host func() string) http.Handler {
 
 // track counts one request in cur and keeps the peak.
 func track(cur, peak *atomic.Int64) func() {
-	n := cur.Add(1)
+	raise(peak, cur.Add(1))
+	return func() { cur.Add(-1) }
+}
+
+// raise sets peak to n if n is higher, safely across goroutines.
+func raise(peak *atomic.Int64, n int64) {
 	for m := peak.Load(); n > m && !peak.CompareAndSwap(m, n); m = peak.Load() {
 	}
-	return func() { cur.Add(-1) }
+}
+
+// requests is a snapshot of every append the fake received.
+func (f *fake) requests() []appendReq {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.appends)
+}
+
+// waitHeld waits for workers to drop the rows of callers that left.
+func waitHeld(t *testing.T, c *Client) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); c.budget.held() != 0 && time.Now().Before(deadline); {
+		time.Sleep(time.Millisecond)
+	}
+	if n := c.budget.held(); n != 0 {
+		t.Errorf("%d bytes still held after every call returned", n)
+	}
 }
 
 // stored is the rows the fake accepted (status 200), by pipe.
@@ -204,7 +227,7 @@ func newClient(t *testing.T, f *fake, mod ...func(*Config)) *Client {
 	return c
 }
 
-func appendRows(c *Client, ctx context.Context, pipe string, rows []map[string]any) error {
+func appendRows(ctx context.Context, c *Client, pipe string, rows []map[string]any) error {
 	return c.AppendTables(ctx, map[string][]map[string]any{pipe: rows})
 }
 
@@ -221,13 +244,14 @@ func TestAppendSendsEveryRowInOrder(t *testing.T) {
 		{"id": "1", "v": "a"},
 		{"id": "2", "v": nil},
 	}
-	if err := appendRows(c, context.Background(), "rx_order", rows); err != nil {
+	if err := appendRows(context.Background(), c, "rx_order", rows); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.appends) != 1 || f.appends[0].pipe != "RX_ORDER" {
-		t.Fatalf("appends = %+v, want one request to RX_ORDER", f.appends)
+	reqs := f.requests()
+	if len(reqs) != 1 || reqs[0].pipe != "RX_ORDER" {
+		t.Fatalf("appends = %+v, want one request to RX_ORDER", reqs)
 	}
-	got := f.appends[0].rows
+	got := reqs[0].rows
 	if len(got) != 2 || got[0]["v"] != "a" || got[1]["id"] != "2" || got[1]["v"] != nil {
 		t.Errorf("rows = %v", got)
 	}
@@ -253,20 +277,21 @@ func TestAppendResponses(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := &fake{appendStatus: tc.status}
 			c := newClient(t, f)
-			err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}})
-			if (err == nil) != tc.ok || errors.Is(err, ErrTooLarge) != tc.tooLarge || len(f.appends) != tc.tries {
-				t.Fatalf("err = %v, tries = %d; want ok %v, too large %v, %d tries", err, len(f.appends), tc.ok, tc.tooLarge, tc.tries)
+			err := appendRows(context.Background(), c, "T", []map[string]any{{"id": "1"}})
+			reqs := f.requests()
+			if (err == nil) != tc.ok || errors.Is(err, ErrTooLarge) != tc.tooLarge || len(reqs) != tc.tries {
+				t.Fatalf("err = %v, tries = %d; want ok %v, too large %v, %d tries", err, len(reqs), tc.ok, tc.tooLarge, tc.tries)
 			}
 			var se *StatusError
 			if err != nil && (!errors.As(err, &se) || se.Code != "ERR_TEST") {
 				t.Errorf("err = %v, want a *StatusError with the Snowflake code", err)
 			}
-			for i, a := range f.appends {
-				if a.requestID != f.appends[0].requestID || a.retryCount != fmt.Sprint(i) {
-					t.Errorf("try %d = %+v, want requestId %s and retryCount %d", i, a, f.appends[0].requestID, i)
+			for i, a := range reqs {
+				if a.requestID != reqs[0].requestID || a.retryCount != fmt.Sprint(i) {
+					t.Errorf("try %d = %+v, want requestId %s and retryCount %d", i, a, reqs[0].requestID, i)
 				}
 			}
-			if tc.status[0] == http.StatusUnauthorized && f.appends[0].token == f.appends[1].token {
+			if tc.status[0] == http.StatusUnauthorized && reqs[0].token == reqs[1].token {
 				t.Error("a 401 did not get a new token")
 			}
 		})
@@ -277,10 +302,12 @@ func TestScopedTokenIsReusedAcrossAppends(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
 	for range 3 {
-		if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}}); err != nil {
+		if err := appendRows(context.Background(), c, "T", []map[string]any{{"id": "1"}}); err != nil {
 			t.Fatal(err)
 		}
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.tokens != 1 {
 		t.Errorf("tokens = %d, want 1", f.tokens)
 	}
@@ -292,7 +319,7 @@ func TestStalledAppendEndsAtTheDeadline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	err := appendRows(c, ctx, "T", []map[string]any{{"id": "1"}})
+	err := appendRows(ctx, c, "T", []map[string]any{{"id": "1"}})
 	if !errors.Is(err, context.DeadlineExceeded) || time.Since(start) > 5*time.Second {
 		t.Fatalf("err = %v after %v, want the deadline", err, time.Since(start))
 	}
@@ -307,7 +334,7 @@ func TestRetriesStopOnceTheCallerHasGivenUp(t *testing.T) {
 	c := newClient(t, f)
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
-	if err := appendRows(c, ctx, "T", []map[string]any{{"id": "1"}}); !errors.Is(err, context.DeadlineExceeded) {
+	if err := appendRows(ctx, c, "T", []map[string]any{{"id": "1"}}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v", err)
 	}
 	time.Sleep(time.Second) // a backoff already started may still send once
@@ -326,7 +353,7 @@ func TestBadInputFailsBeforeAnythingIsSent(t *testing.T) {
 		"a value JSON cannot write": {{"id": "1", "v": make(chan int)}},
 	}
 	for name, rows := range cases {
-		if err := appendRows(c, context.Background(), "T", rows); err == nil {
+		if err := appendRows(context.Background(), c, "T", rows); err == nil {
 			t.Errorf("%s: want an error", name)
 		}
 	}
@@ -352,7 +379,7 @@ func (failingMarshaler) MarshalJSON() ([]byte, error) { return nil, errors.New("
 func TestAnEncodeErrorDoesNotQuoteTheValue(t *testing.T) {
 	c := newClient(t, &fake{})
 	for _, v := range []any{json.Number("555-0100"), failingMarshaler{}} {
-		err := appendRows(c, context.Background(), "T", []map[string]any{{"phone": v}})
+		err := appendRows(context.Background(), c, "T", []map[string]any{{"phone": v}})
 		if err == nil || strings.Contains(err.Error(), "555-0100") {
 			t.Errorf("%T: err = %v, want an error without the value", v, err)
 		}
@@ -403,7 +430,7 @@ func TestAnEmptyIngestHostIsAnErrorAndNotKept(t *testing.T) {
 func TestAnAppendErrorCarriesTheCodeButNotSnowflakesMessage(t *testing.T) {
 	f := &fake{appendStatus: []int{400}}
 	c := newClient(t, f)
-	err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}})
+	err := appendRows(context.Background(), c, "T", []map[string]any{{"id": "1"}})
 	var se *StatusError
 	if !errors.As(err, &se) || se.Code != "ERR_TEST" || se.Message != "" || strings.Contains(err.Error(), "row is bad") {
 		t.Fatalf("err = %v", err)
@@ -473,16 +500,16 @@ func TestAPanicBecomesAnErrorAndTheClientKeepsWorking(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
 
-	err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}, {"id": "2", "v": panicky{}}})
+	err := appendRows(context.Background(), c, "T", []map[string]any{{"id": "1"}, {"id": "2", "v": panicky{}}})
 	if err == nil || !strings.Contains(err.Error(), "row 1") || strings.Contains(err.Error(), "secret") {
 		t.Fatalf("encode panic: err = %v, want an error naming row 1 and not the value", err)
 	}
 
 	c.http.Transport = &panicTransport{next: c.http.Transport}
-	if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "3"}}); err == nil {
+	if err := appendRows(context.Background(), c, "T", []map[string]any{{"id": "3"}}); err == nil {
 		t.Fatal("send panic: want an error")
 	}
-	if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "4"}}); err != nil {
+	if err := appendRows(context.Background(), c, "T", []map[string]any{{"id": "4"}}); err != nil {
 		t.Fatalf("after a panic: %v", err)
 	}
 	if n := c.budget.held(); n != 0 {
@@ -494,7 +521,7 @@ func TestAnOversizedRowIsTooLargeAndNothingIsSent(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
 	rows := []map[string]any{{"id": "1"}, {"id": "2", "v": strings.Repeat("x", maxRow)}}
-	if err := appendRows(c, context.Background(), "T", rows); !errors.Is(err, ErrTooLarge) || f.count() != 0 {
+	if err := appendRows(context.Background(), c, "T", rows); !errors.Is(err, ErrTooLarge) || f.count() != 0 {
 		t.Fatalf("err = %v, requests = %d; want ErrTooLarge and no request", err, f.count())
 	}
 }
@@ -510,7 +537,7 @@ func TestRowsThatDoNotCompressAreSplitUnderTheCap(t *testing.T) {
 		rand.Read(noise)
 		rows = append(rows, map[string]any{"id": fmt.Sprint(i), "v": hex.EncodeToString(noise)})
 	}
-	if err := appendRows(c, context.Background(), "T", rows); err != nil {
+	if err := appendRows(context.Background(), c, "T", rows); err != nil {
 		t.Fatal(err)
 	}
 	seen := map[string]bool{}
@@ -520,13 +547,14 @@ func TestRowsThatDoNotCompressAreSplitUnderTheCap(t *testing.T) {
 	if len(seen) != len(rows) || len(f.stored()["T"]) != len(rows) {
 		t.Fatalf("stored %d rows (%d distinct), want %d", len(f.stored()["T"]), len(seen), len(rows))
 	}
-	for _, a := range f.appends {
+	reqs := f.requests()
+	for _, a := range reqs {
 		if a.wire > maxPayload {
 			t.Errorf("a request of %d bytes on the wire, over %d", a.wire, maxPayload)
 		}
 	}
-	if len(f.appends) < 3 {
-		t.Errorf("%d requests for ~12 MB of incompressible rows", len(f.appends))
+	if len(reqs) < 3 {
+		t.Errorf("%d requests for ~12 MB of incompressible rows", len(reqs))
 	}
 }
 
@@ -538,20 +566,8 @@ func TestManyCallersShareAFixedNumberOfWorkers(t *testing.T) {
 	base := runtime.NumGoroutine()
 
 	const callers, pipes, calls, perCall = 40, 8, 10, 25
-	var maxGoroutines atomic.Int64
 	stop := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-stop:
-				return
-			case <-time.After(time.Millisecond):
-				if n := int64(runtime.NumGoroutine()); n > maxGoroutines.Load() {
-					maxGoroutines.Store(n)
-				}
-			}
-		}
-	}()
+	maxGoroutines := sample(stop, func() int { return runtime.NumGoroutine() })
 	var wg sync.WaitGroup
 	for w := range callers {
 		wg.Add(1)
@@ -562,7 +578,7 @@ func TestManyCallersShareAFixedNumberOfWorkers(t *testing.T) {
 				for j := range rows {
 					rows[j] = map[string]any{"id": fmt.Sprintf("%d-%d-%d", w, i, j)}
 				}
-				if err := appendRows(c, context.Background(), fmt.Sprint("P", (w+i)%pipes), rows); err != nil {
+				if err := appendRows(context.Background(), c, fmt.Sprint("P", (w+i)%pipes), rows); err != nil {
 					t.Error(err)
 				}
 			}
@@ -643,7 +659,7 @@ func TestTheDefaultPoolIsOneWorker(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := appendRows(c, context.Background(), fmt.Sprint("P", w%4), []map[string]any{{"id": fmt.Sprint(w)}}); err != nil {
+			if err := appendRows(context.Background(), c, fmt.Sprint("P", w%4), []map[string]any{{"id": fmt.Sprint(w)}}); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -671,7 +687,7 @@ func TestOneBusyPipeCannotTakeEveryWorker(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := range 5 {
-				if err := appendRows(c, context.Background(), "HOT", []map[string]any{{"id": fmt.Sprint(w, "-", i)}}); err != nil {
+				if err := appendRows(context.Background(), c, "HOT", []map[string]any{{"id": fmt.Sprint(w, "-", i)}}); err != nil {
 					t.Error(err)
 				}
 			}
@@ -683,8 +699,8 @@ func TestOneBusyPipeCannotTakeEveryWorker(t *testing.T) {
 	}
 }
 
-// peakHeld samples the bytes held by calls in progress until stop is closed.
-func peakHeld(c *Client, stop <-chan struct{}) *atomic.Int64 {
+// sample keeps the highest value of f, read every millisecond until stop is closed.
+func sample(stop <-chan struct{}, f func() int) *atomic.Int64 {
 	var peak atomic.Int64
 	go func() {
 		for {
@@ -692,13 +708,30 @@ func peakHeld(c *Client, stop <-chan struct{}) *atomic.Int64 {
 			case <-stop:
 				return
 			case <-time.After(time.Millisecond):
-				if n := int64(c.budget.held()); n > peak.Load() {
-					peak.Store(n)
-				}
+				raise(&peak, int64(f()))
 			}
 		}
 	}()
 	return &peak
+}
+
+// The cap holds exactly: a call that would pass it waits for a release.
+func TestBudgetWaitsForRoom(t *testing.T) {
+	b := newBudget(10)
+	if err := b.acquire(context.Background(), 6); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := b.acquire(ctx, 6); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("acquire past the cap: err = %v, want it to wait until the deadline", err)
+	}
+	done := make(chan error)
+	go func() { done <- b.acquire(context.Background(), 6) }()
+	b.release(6)
+	if err := <-done; err != nil || b.held() != 6 {
+		t.Fatalf("after release: err = %v, held = %d", err, b.held())
+	}
 }
 
 // Rows held across all pipes never pass the cap: a call that would go over waits for room,
@@ -709,7 +742,7 @@ func TestQueuedRowsStayUnderTheCapAndCallersWaitForRoom(t *testing.T) {
 	c.budget.limit = 2 << 10 // a few calls' worth
 
 	stop := make(chan struct{})
-	peak := peakHeld(c, stop)
+	peak := sample(stop, c.budget.held)
 	var ok, waitedOut atomic.Int64
 	var wg sync.WaitGroup
 	for w := range 30 {
@@ -719,7 +752,7 @@ func TestQueuedRowsStayUnderTheCapAndCallersWaitForRoom(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 			defer cancel()
 			rows := []map[string]any{{"id": fmt.Sprint(w), "v": strings.Repeat("x", 400)}}
-			switch err := appendRows(c, ctx, fmt.Sprint("P", w%3), rows); {
+			switch err := appendRows(ctx, c, fmt.Sprint("P", w%3), rows); {
 			case err == nil:
 				ok.Add(1)
 			case errors.Is(err, context.DeadlineExceeded):
@@ -730,7 +763,7 @@ func TestQueuedRowsStayUnderTheCapAndCallersWaitForRoom(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	time.Sleep(200 * time.Millisecond) // let workers drop the rows of callers that left
+	waitHeld(t, c)
 	close(stop)
 
 	if p := peak.Load(); p > 2<<10 {
@@ -739,9 +772,6 @@ func TestQueuedRowsStayUnderTheCapAndCallersWaitForRoom(t *testing.T) {
 	if ok.Load() == 0 || waitedOut.Load() == 0 {
 		t.Errorf("%d stored, %d gave up waiting; want some of each", ok.Load(), waitedOut.Load())
 	}
-	if n := c.budget.held(); n != 0 {
-		t.Errorf("%d bytes still held after every call returned", n)
-	}
 }
 
 // A call bigger than the whole cap still goes through when nothing else is queued.
@@ -749,7 +779,7 @@ func TestACallBiggerThanTheCapIsNotStuck(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
 	c.budget.limit = 100
-	if err := appendRows(c, context.Background(), "T", []map[string]any{{"v": strings.Repeat("x", 1000)}}); err != nil {
+	if err := appendRows(context.Background(), c, "T", []map[string]any{{"v": strings.Repeat("x", 1000)}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -759,16 +789,15 @@ func TestACallBiggerThanTheCapIsNotStuck(t *testing.T) {
 func TestAnOutageIsBoundedAndTheClientRecovers(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f, func(cfg *Config) { cfg.NumWorkers = 2 })
-	if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "warm"}}); err != nil {
+	if err := appendRows(context.Background(), c, "T", []map[string]any{{"id": "warm"}}); err != nil {
 		t.Fatal(err)
 	}
 	base := runtime.NumGoroutine()
 	f.down.Store(true)
 
 	stop := make(chan struct{})
-	peak := peakHeld(c, stop)
-	var maxGoroutines atomic.Int64
-	var failed atomic.Int64
+	peak := sample(stop, c.budget.held)
+	maxGoroutines := sample(stop, func() int { return runtime.NumGoroutine() })
 	var wg sync.WaitGroup
 	for w := range 10 { // like 10 streams, each retrying its write until the outage ends
 		wg.Add(1)
@@ -776,14 +805,10 @@ func TestAnOutageIsBoundedAndTheClientRecovers(t *testing.T) {
 			defer wg.Done()
 			for i := 0; i < 8; i++ {
 				ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
-				err := appendRows(c, ctx, fmt.Sprint("P", w%3), []map[string]any{{"id": fmt.Sprint(w, "-", i)}})
+				err := appendRows(ctx, c, fmt.Sprint("P", w%3), []map[string]any{{"id": fmt.Sprint(w, "-", i)}})
 				cancel()
 				if err == nil {
 					t.Error("an append stored during the outage")
-				}
-				failed.Add(1)
-				if n := int64(runtime.NumGoroutine()); n > maxGoroutines.Load() {
-					maxGoroutines.Store(n)
 				}
 			}
 		}()
@@ -791,7 +816,8 @@ func TestAnOutageIsBoundedAndTheClientRecovers(t *testing.T) {
 	wg.Wait()
 	close(stop)
 
-	if limit := int64(base + 10 + 1 + 10); maxGoroutines.Load() > limit {
+	// callers + 2 samplers + workers and a few for HTTP/2 and the test server.
+	if limit := int64(base + 10 + 2 + 10); maxGoroutines.Load() > limit {
 		t.Errorf("goroutines peaked at %d during the outage, want at most %d", maxGoroutines.Load(), limit)
 	}
 	if p := peak.Load(); p > maxQueued {
@@ -799,14 +825,8 @@ func TestAnOutageIsBoundedAndTheClientRecovers(t *testing.T) {
 	}
 
 	f.down.Store(false)
-	deadline := time.Now().Add(5 * time.Second)
-	for c.budget.held() != 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if n := c.budget.held(); n != 0 {
-		t.Errorf("%d bytes still held after the outage", n)
-	}
-	if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "after"}}); err != nil {
+	waitHeld(t, c)
+	if err := appendRows(context.Background(), c, "T", []map[string]any{{"id": "after"}}); err != nil {
 		t.Fatalf("after the outage: %v", err)
 	}
 }
@@ -824,7 +844,7 @@ func TestAHungTokenEndpointDoesNotHoldCallers(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 			defer cancel()
 			start := time.Now()
-			if err := appendRows(c, ctx, "T", []map[string]any{{"id": "1"}}); !errors.Is(err, context.DeadlineExceeded) {
+			if err := appendRows(ctx, c, "T", []map[string]any{{"id": "1"}}); !errors.Is(err, context.DeadlineExceeded) {
 				t.Errorf("err = %v", err)
 			}
 			if took := time.Since(start); took > time.Second {
@@ -836,7 +856,7 @@ func TestAHungTokenEndpointDoesNotHoldCallers(t *testing.T) {
 	close(f.tokenGate)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := appendRows(c, ctx, "T", []map[string]any{{"id": "2"}}); err != nil {
+	if err := appendRows(ctx, c, "T", []map[string]any{{"id": "2"}}); err != nil {
 		t.Fatalf("after the token endpoint recovered: %v", err)
 	}
 }
@@ -859,7 +879,7 @@ func TestAppendReturnsOnlyOnceTheRowsAreStored(t *testing.T) {
 	f := &fake{delay: 30 * time.Millisecond}
 	c := newClient(t, f)
 	for i := 1; i <= 4; i++ {
-		if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": fmt.Sprint(i)}}); err != nil {
+		if err := appendRows(context.Background(), c, "T", []map[string]any{{"id": fmt.Sprint(i)}}); err != nil {
 			t.Fatal(err)
 		}
 		if n := len(f.stored()["T"]); n != i {
@@ -868,19 +888,26 @@ func TestAppendReturnsOnlyOnceTheRowsAreStored(t *testing.T) {
 	}
 }
 
+// waitInflight waits until the fake is handling an append.
+func waitInflight(f *fake) {
+	for f.inflight.Load() == 0 {
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func TestCloseWaitsForAppendsThenRejectsNewOnes(t *testing.T) {
 	f := &fake{delay: 50 * time.Millisecond}
 	c := newClient(t, f)
 	errc := make(chan error)
-	go func() { errc <- appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}}) }()
-	time.Sleep(10 * time.Millisecond)
+	go func() { errc <- appendRows(context.Background(), c, "T", []map[string]any{{"id": "1"}}) }()
+	waitInflight(f)
 	if err := c.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if err := <-errc; err != nil || len(f.stored()["T"]) != 1 {
 		t.Fatalf("in-flight append: err = %v, stored = %d", err, len(f.stored()["T"]))
 	}
-	if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "2"}}); !errors.Is(err, ErrClosed) {
+	if err := appendRows(context.Background(), c, "T", []map[string]any{{"id": "2"}}); !errors.Is(err, ErrClosed) {
 		t.Fatalf("after Close: err = %v", err)
 	}
 }
@@ -889,8 +916,8 @@ func TestCloseDeadlineCutsOffRequestsInFlight(t *testing.T) {
 	f := &fake{stall: true}
 	c := newClient(t, f)
 	errc := make(chan error)
-	go func() { errc <- appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}}) }()
-	time.Sleep(50 * time.Millisecond)
+	go func() { errc <- appendRows(context.Background(), c, "T", []map[string]any{{"id": "1"}}) }()
+	waitInflight(f)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	if err := c.Close(ctx); !errors.Is(err, context.DeadlineExceeded) {
@@ -969,9 +996,10 @@ func TestQueryWaitsForARunningStatementAndReadsEveryPartition(t *testing.T) {
 		var req struct {
 			Statement string
 			Warehouse string
+			Timeout   int
 			Bindings  map[string]map[string]string
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Warehouse != "WH" || req.Bindings["1"]["value"] != "SC" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Warehouse != "WH" || req.Bindings["1"]["value"] != "SC" || req.Timeout < 1 || req.Timeout > 10 {
 			t.Errorf("request = %+v, %v", req, err)
 		}
 		w.WriteHeader(http.StatusAccepted)
@@ -996,8 +1024,10 @@ func TestQueryWaitsForARunningStatementAndReadsEveryPartition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	rows, err := c.Query(context.Background(), "SELECT 1 WHERE x = ?", "SC")
+	rows, err := c.Query(ctx, "SELECT 1 WHERE x = ?", "SC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1009,8 +1039,8 @@ func TestQueryWaitsForARunningStatementAndReadsEveryPartition(t *testing.T) {
 func TestQueryReportsTheSQLError(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req["warehouse"] != nil || req["role"] != nil {
-			t.Errorf("request = %v, %v; want no warehouse or role when unset", req, err)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req["warehouse"] != nil || req["role"] != nil || req["timeout"] != 60.0 {
+			t.Errorf("request = %v, %v; want no warehouse or role when unset, and a 60s timeout without a deadline", req, err)
 		}
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		fmt.Fprint(w, `{"code": "002003", "message": "Schema 'SC' does not exist"}`)
