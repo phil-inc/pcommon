@@ -44,12 +44,9 @@ func parseKey(pemText string) (*rsa.PrivateKey, error) {
 	if block == nil {
 		return nil, errors.New("not a PEM block")
 	}
-	if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
-		return key, nil
-	}
 	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, errors.New("not an unencrypted PKCS#8 or PKCS#1 key")
+		return nil, errors.New("not an unencrypted PKCS#8 key")
 	}
 	key, ok := parsed.(*rsa.PrivateKey)
 	if !ok {
@@ -112,7 +109,11 @@ func (a *auth) hostname(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("get ingest host: %w", err)
 	}
 	// Snowflake documents that the ingest host uses dashes where the account has underscores.
-	return strings.ReplaceAll(strings.TrimSpace(string(body)), "_", "-"), nil
+	host := strings.ReplaceAll(strings.TrimSpace(string(body)), "_", "-")
+	if host == "" {
+		return "", errors.New("get ingest host: empty response")
+	}
+	return host, nil
 }
 
 // ingestToken returns the ingest base URL and a scoped token. stale is a token the ingest host

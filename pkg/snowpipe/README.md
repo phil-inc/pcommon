@@ -1,10 +1,10 @@
 ## Snowpipe Streaming Implementation
-A client for Snowpipe Streaming (high-performance architecture) over its REST API. Rows go to each pipe's Elastic Channel. `AppendRows` and `AppendTables` return once Snowflake has stored the rows. Retries, token renewal, compression and request sizing happen inside.
+A client for Snowpipe Streaming (high-performance architecture) over its REST API. Rows go to each pipe's Elastic Channel. `AppendTables` returns once Snowflake has stored the rows. Retries, token renewal, compression and request sizing happen inside.
 
 Delivery is at-least-once: a retry can store a row twice, so give rows a stable id. The client does not panic: failures come back as errors, an `*AppendError` listing each failed pipe, and errors never hold row values.
 
 ## Prerequisites
-* Snowflake account, user and unencrypted RSA private key (PKCS#8 or PKCS#1)
+* Snowflake account, user and unencrypted RSA private key (PKCS#8)
 * A pipe per table
 * A role with USAGE on the database and schema, INSERT on the table and OPERATE on the pipe
 

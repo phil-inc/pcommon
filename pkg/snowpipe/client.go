@@ -8,11 +8,10 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
-	"math"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/klauspost/compress/zstd"
@@ -22,7 +21,7 @@ import (
 type Config struct {
 	Account    string // the host is <Account>.snowflakecomputing.com
 	User       string
-	PrivateKey string // PEM, PKCS#8 or PKCS#1, not encrypted
+	PrivateKey string // PEM, PKCS#8, not encrypted
 	Database   string
 	Schema     string
 	Warehouse  string // Query only
@@ -31,8 +30,7 @@ type Config struct {
 	BaseURL    string       // replaces https://<Account>.snowflakecomputing.com
 	HTTPClient *http.Client // default: 1 minute timeout, 64 idle connections per host
 
-	NumWorkers int           // goroutines sending rows, and so requests in flight; default 1
-	RetryFor   time.Duration // how long one request is retried; default 1 minute
+	NumWorkers int // goroutines sending rows, and so requests in flight; default 1
 }
 
 // Client is safe for concurrent use. Create one per schema and share it.
@@ -42,7 +40,6 @@ type Client struct {
 	ownHTTP bool
 	auth    auth
 	zstd    *zstd.Encoder
-	ratio   atomic.Uint64 // smoothed uncompressed/compressed size, as float64 bits
 	budget  budget
 
 	// ctx is cancelled by Close to cut off requests in flight.
@@ -68,7 +65,7 @@ func New(cfg Config) (*Client, error) {
 	}
 	key, err := parseKey(cfg.PrivateKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("snowpipe: private key: %w", err)
 	}
 	der, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
 	if err != nil {
@@ -80,9 +77,6 @@ func New(cfg Config) (*Client, error) {
 		return nil, err
 	}
 	cfg.NumWorkers = max(cfg.NumWorkers, 1)
-	if cfg.RetryFor <= 0 {
-		cfg.RetryFor = time.Minute
-	}
 
 	c := &Client{cfg: cfg, http: cfg.HTTPClient, zstd: enc, pipes: map[string]*pipeQueue{}}
 	if c.http == nil {
@@ -102,16 +96,19 @@ func New(cfg Config) (*Client, error) {
 		lock:        make(chan struct{}, 1),
 	}
 	c.budget = newBudget(maxQueued)
-	c.ratio.Store(math.Float64bits(3))
 	c.cond = sync.NewCond(&c.mu)
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	return c, nil
 }
 
 // newTransport raises the idle pool per host from 2: with 2, requests at a few thousand rows/s
-// stalled for seconds while new connections were set up.
-func newTransport() *http.Transport {
-	t := http.DefaultTransport.(*http.Transport).Clone()
+// stalled for seconds while new connections were set up. A replaced DefaultTransport is used as is.
+func newTransport() http.RoundTripper {
+	t, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return http.DefaultTransport
+	}
+	t = t.Clone()
 	t.MaxIdleConns = 256
 	t.MaxIdleConnsPerHost = 64
 	return t
@@ -141,7 +138,6 @@ func (c *Client) Close(ctx context.Context) error {
 	c.mu.Unlock()
 
 	stop := context.AfterFunc(ctx, c.cancel)
-	defer stop()
 	c.calls.Wait()
 	c.mu.Lock()
 	c.stopping = true
@@ -149,9 +145,13 @@ func (c *Client) Close(ctx context.Context) error {
 	c.mu.Unlock()
 	c.workers.Wait()
 
+	cutOff := !stop() // ctx ended before the workers did
 	c.cancel()
 	if c.ownHTTP {
 		c.http.CloseIdleConnections()
 	}
-	return ctx.Err()
+	if cutOff {
+		return ctx.Err()
+	}
+	return nil
 }

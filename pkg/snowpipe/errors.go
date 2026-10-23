@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	// ErrTooLarge is a row over MaxRow, or a request Snowflake answered 413.
+	// ErrTooLarge is a row over 4 MB encoded, or a request Snowflake answered 413.
 	ErrTooLarge = errors.New("snowpipe: too large")
 	ErrClosed   = errors.New("snowpipe: client closed")
 )

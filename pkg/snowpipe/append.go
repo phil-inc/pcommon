@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -12,23 +13,15 @@ import (
 )
 
 const (
-	maxPayload = 4 << 20  // Snowflake's cap on one request body, after compression
-	maxRequest = 16 << 20 // most uncompressed bytes in one request
-	maxQueued  = 64 << 20 // most encoded bytes held by appends in progress
+	maxPayload = 4 << 20              // Snowflake's cap on one request body, after compression
+	maxRow     = maxPayload - 64<<10  // largest encoded row, so a chunk fits one request even uncompressed
+	maxRequest = maxPayload * 27 / 10 // uncompressed bytes per request; rows compress about 3x, and send halves one that does not fit
+	maxQueued  = 64 << 20             // most encoded bytes held by appends in progress
 )
-
-// MaxRow is the largest encoded row. Rows under it fit one request uncompressed, so a chunk of
-// them never needs splitting.
-const MaxRow = maxPayload - 64<<10
-
-// AppendRows stores rows in pipe and returns once Snowflake has acknowledged all of them.
-func (c *Client) AppendRows(ctx context.Context, pipe string, rows []map[string]any) error {
-	return c.AppendTables(ctx, map[string][]map[string]any{pipe: rows})
-}
 
 // AppendTables stores the rows of several pipes and returns once Snowflake has acknowledged
 // all of them. Concurrent calls to a pipe share requests; failures are retried until ctx ends
-// or RetryFor passes. On error some rows may be stored, so a retry can duplicate them. A row
+// or a minute passes. On error some rows may be stored, so a retry can duplicate them. A row
 // that cannot be encoded fails the call before anything is sent.
 func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[string]any) (err error) {
 	defer func() {
@@ -100,13 +93,27 @@ func encode(rows []map[string]any) (_ []byte, err error) {
 		}
 		before := buf.Len()
 		if err := enc.Encode(rows[i]); err != nil {
-			return nil, fmt.Errorf("encode row %d: %w", i, err)
+			return nil, encodeError(i, err)
 		}
-		if n := buf.Len() - before; n > MaxRow {
+		if n := buf.Len() - before; n > maxRow {
 			return nil, fmt.Errorf("row %d is %d bytes: %w", i, n, ErrTooLarge)
 		}
 	}
 	return buf.Bytes(), nil
+}
+
+// encodeError keeps only types: other json errors can quote the value, as an invalid
+// json.Number does.
+func encodeError(i int, err error) error {
+	var te *json.UnsupportedTypeError
+	var me *json.MarshalerError
+	switch {
+	case errors.As(err, &te):
+		return fmt.Errorf("encode row %d: %w", i, err)
+	case errors.As(err, &me):
+		return fmt.Errorf("encode row %d: MarshalJSON failed for %s", i, me.Type)
+	}
+	return fmt.Errorf("encode row %d: unsupported value", i)
 }
 
 // call is one AppendTables until each of its chunks is stored or has failed.
@@ -145,13 +152,13 @@ type chunk struct {
 	finished bool
 }
 
-// cut splits one pipe's rows into chunks of at most MaxRow bytes, on row boundaries.
+// cut splits one pipe's rows into chunks of at most maxRow bytes, on row boundaries.
 func cut(cl *call, p encodedPipe) []*chunk {
 	var out []*chunk
 	for rest := p.data; len(rest) > 0; {
 		n := len(rest)
-		if n > MaxRow {
-			n = bytes.LastIndexByte(rest[:MaxRow], '\n') + 1
+		if n > maxRow {
+			n = bytes.LastIndexByte(rest[:maxRow], '\n') + 1
 		}
 		out = append(out, &chunk{call: cl, pipe: p.pipe, data: rest[:n], rows: bytes.Count(rest[:n], []byte{'\n'})})
 		rest = rest[n:]
@@ -190,10 +197,10 @@ func finishAll(chunks []*chunk, err error) {
 	}
 }
 
-// abandoned reports whether every call waiting on chunks has returned.
-func abandoned(chunks []*chunk) bool {
-	for _, ch := range chunks {
-		if ch.call.ctx.Err() == nil {
+// abandoned reports whether every call has returned.
+func abandoned(calls []*call) bool {
+	for _, cl := range calls {
+		if cl.ctx.Err() == nil {
 			return false
 		}
 	}

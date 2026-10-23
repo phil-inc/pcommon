@@ -6,35 +6,19 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"math"
 	mrand "math/rand/v2"
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
 const (
 	attemptTimeout = 30 * time.Second
 	maxBackoff     = 5 * time.Second
+	retryFor       = time.Minute // how long one request is retried
 )
-
-// target is the uncompressed size that should compress to just under maxPayload.
-func (c *Client) target() int {
-	ratio := math.Float64frombits(c.ratio.Load())
-	return min(int(0.9*maxPayload*ratio), maxRequest)
-}
-
-// observeRatio folds one request into the smoothed ratio. A lost update under contention only
-// leaves the estimate slightly stale.
-func (c *Client) observeRatio(raw, compressed int) {
-	if compressed == 0 {
-		return
-	}
-	r := max(float64(raw)/float64(compressed), 1)
-	old := math.Float64frombits(c.ratio.Load())
-	c.ratio.Store(math.Float64bits(0.8*old + 0.2*r))
-}
 
 // send posts chunks as one request, halving it while it compresses past the cap. Every chunk
 // gets an outcome, even if sending panics.
@@ -53,27 +37,51 @@ func (c *Client) send(pipe string, chunks []*chunk) {
 		raw = append(raw, ch.data...)
 	}
 	body := c.zstd.EncodeAll(raw, nil)
-	c.observeRatio(len(raw), len(body))
 	if len(body) > maxPayload && len(chunks) > 1 {
 		half := len(chunks) / 2
 		c.send(pipe, chunks[:half])
 		c.send(pipe, chunks[half:])
 		return
 	}
-	finishAll(chunks, c.post(pipe, body, len(raw), chunks))
+	finishAll(chunks, c.post(&request{
+		path: fmt.Sprintf("/v2/streaming/data/databases/%s/schemas/%s/pipes/%s/channels/ELASTIC/rows",
+			url.PathEscape(c.cfg.Database), url.PathEscape(c.cfg.Schema), url.PathEscape(pipe)),
+		id:    requestID(),
+		body:  body,
+		raw:   len(raw),
+		calls: callers(chunks),
+	}))
 }
 
-// post sends one request until it is stored or cannot be. Every try has the same requestId
-// and the next retryCount, which is how the Elastic API tells a retry from new rows.
-func (c *Client) post(pipe string, body []byte, raw int, chunks []*chunk) error {
-	path := fmt.Sprintf("/v2/streaming/data/databases/%s/schemas/%s/pipes/%s/channels/ELASTIC/rows",
-		url.PathEscape(c.cfg.Database), url.PathEscape(c.cfg.Schema), url.PathEscape(pipe))
-	id := requestID()
-	deadline := time.Now().Add(c.cfg.RetryFor)
+// request is one rowset, sent until it is stored or cannot be.
+type request struct {
+	path  string
+	id    string
+	body  []byte  // zstd
+	raw   int     // uncompressed size
+	calls []*call // callers waiting on its rows
+}
+
+// callers lists the calls behind chunks. A call's chunks are queued together, so comparing
+// with the previous one is enough.
+func callers(chunks []*chunk) []*call {
+	var out []*call
+	for _, ch := range chunks {
+		if len(out) == 0 || out[len(out)-1] != ch.call {
+			out = append(out, ch.call)
+		}
+	}
+	return out
+}
+
+// post sends r until it is stored or cannot be. Every try has the same requestId and the next
+// retryCount, which is how the Elastic API tells a retry from new rows.
+func (c *Client) post(r *request) error {
+	deadline := time.Now().Add(retryFor)
 	backoff := 100 * time.Millisecond
 	stale, renewals := "", 0
 	for try := 0; ; try++ {
-		token, wait, err := c.attempt(chunks, path, id, try, stale, body, raw)
+		token, wait, err := c.attempt(r, try, stale)
 		if err == nil {
 			return nil
 		}
@@ -85,7 +93,9 @@ func (c *Client) post(pipe string, body []byte, raw int, chunks []*chunk) error 
 		case isStatus && se.Status == http.StatusUnauthorized && renewals < 2:
 			stale, renewals = token, renewals+1
 			continue
-		case isStatus && !retryable(se.Status), abandoned(chunks):
+		case isStatus && !retryable(se.Status):
+			return err
+		case abandoned(r.calls):
 			return err
 		}
 		wait = max(wait, backoff/2+mrand.N(backoff/2+1))
@@ -106,13 +116,15 @@ func retryable(status int) bool {
 }
 
 // attempt sends one try. It returns the token it used and the Retry-After wait. The try is cut
-// off once every caller waiting on chunks has returned, so a stalled request frees its worker.
-func (c *Client) attempt(chunks []*chunk, path, id string, try int, stale string, body []byte, raw int) (string, time.Duration, error) {
+// off once every caller has returned, so a stalled request frees its worker.
+func (c *Client) attempt(r *request, try int, stale string) (string, time.Duration, error) {
 	ctx, cancel := context.WithTimeout(c.ctx, attemptTimeout)
 	defer cancel()
-	for _, ch := range chunks {
-		stop := context.AfterFunc(ch.call.ctx, func() {
-			if abandoned(chunks) {
+	var waiting atomic.Int32
+	waiting.Store(int32(len(r.calls)))
+	for _, cl := range r.calls {
+		stop := context.AfterFunc(cl.ctx, func() {
+			if waiting.Add(-1) == 0 {
 				cancel()
 			}
 		})
@@ -124,7 +136,7 @@ func (c *Client) attempt(chunks []*chunk, path, id string, try int, stale string
 		return "", 0, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		fmt.Sprintf("%s%s?requestId=%s&retryCount=%d", base, path, id, try), bytes.NewReader(body))
+		fmt.Sprintf("%s%s?requestId=%s&retryCount=%d", base, r.path, r.id, try), bytes.NewReader(r.body))
 	if err != nil {
 		return token, 0, err
 	}
@@ -134,7 +146,7 @@ func (c *Client) attempt(chunks []*chunk, path, id string, try int, stale string
 	// Without it Snowflake answers 400 "Unsupported Accept header null".
 	req.Header.Set("Accept", "application/json")
 	// Undocumented; the Rust SDK sends it so the server can size the rows up front.
-	req.Header.Set("x-snowflake-uncompressed-content-length", strconv.Itoa(raw))
+	req.Header.Set("x-snowflake-uncompressed-content-length", strconv.Itoa(r.raw))
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return token, 0, fmt.Errorf("post rows: %w", err)
@@ -148,13 +160,10 @@ func (c *Client) attempt(chunks []*chunk, path, id string, try int, stale string
 	return token, wait, err
 }
 
-// retryAfter reads Retry-After as seconds or an HTTP date.
+// retryAfter reads Retry-After in seconds.
 func retryAfter(v string) time.Duration {
 	if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
 		return time.Duration(secs) * time.Second
-	}
-	if t, err := http.ParseTime(v); err == nil {
-		return max(time.Until(t), 0)
 	}
 	return 0
 }

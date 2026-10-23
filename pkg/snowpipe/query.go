@@ -29,8 +29,12 @@ func (c *Client) Query(ctx context.Context, statement string, args ...string) ([
 		"timeout":   60,
 		"database":  c.cfg.Database,
 		"schema":    c.cfg.Schema,
-		"warehouse": c.cfg.Warehouse,
-		"role":      c.cfg.Role,
+	}
+	if c.cfg.Warehouse != "" {
+		req["warehouse"] = c.cfg.Warehouse
+	}
+	if c.cfg.Role != "" {
+		req["role"] = c.cfg.Role
 	}
 	if len(args) > 0 {
 		bindings := map[string]any{}

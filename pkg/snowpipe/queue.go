@@ -88,7 +88,7 @@ func (c *Client) next() (*pipeQueue, []*chunk, bool) {
 		q := c.ready[0]
 		c.ready = c.ready[1:]
 		q.ready = false
-		chunks := q.take(c.target())
+		chunks := q.take(maxRequest)
 		if len(chunks) > 0 {
 			q.inflight++
 		}

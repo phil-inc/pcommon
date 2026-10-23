@@ -132,7 +132,7 @@ func (f *fake) handler(t *testing.T, host func() string) http.Handler {
 			wire:       len(body),
 		}
 		sc := bufio.NewScanner(bytes.NewReader(raw))
-		sc.Buffer(nil, MaxRow+1)
+		sc.Buffer(nil, maxRow+1)
 		for sc.Scan() {
 			var row map[string]any
 			if err := json.Unmarshal(sc.Bytes(), &row); err != nil {
@@ -204,14 +204,18 @@ func newClient(t *testing.T, f *fake, mod ...func(*Config)) *Client {
 	return c
 }
 
-func TestAppendRowsSendsEveryRowInOrder(t *testing.T) {
+func appendRows(c *Client, ctx context.Context, pipe string, rows []map[string]any) error {
+	return c.AppendTables(ctx, map[string][]map[string]any{pipe: rows})
+}
+
+func TestAppendSendsEveryRowInOrder(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
 	rows := []map[string]any{
 		{"id": "1", "v": "a"},
 		{"id": "2", "v": nil},
 	}
-	if err := c.AppendRows(context.Background(), "rx_order", rows); err != nil {
+	if err := appendRows(c, context.Background(), "rx_order", rows); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.appends) != 1 || f.appends[0].pipe != "RX_ORDER" {
@@ -243,7 +247,7 @@ func TestAppendResponses(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := &fake{appendStatus: tc.status}
 			c := newClient(t, f)
-			err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "1"}})
+			err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}})
 			if (err == nil) != tc.ok || errors.Is(err, ErrTooLarge) != tc.tooLarge || len(f.appends) != tc.tries {
 				t.Fatalf("err = %v, tries = %d; want ok %v, too large %v, %d tries", err, len(f.appends), tc.ok, tc.tooLarge, tc.tries)
 			}
@@ -267,7 +271,7 @@ func TestScopedTokenIsReusedAcrossAppends(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
 	for range 3 {
-		if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "1"}}); err != nil {
+		if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -282,7 +286,7 @@ func TestStalledAppendEndsAtTheDeadline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	err := c.AppendRows(ctx, "T", []map[string]any{{"id": "1"}})
+	err := appendRows(c, ctx, "T", []map[string]any{{"id": "1"}})
 	if !errors.Is(err, context.DeadlineExceeded) || time.Since(start) > 5*time.Second {
 		t.Fatalf("err = %v after %v, want the deadline", err, time.Since(start))
 	}
@@ -297,7 +301,7 @@ func TestRetriesStopOnceTheCallerHasGivenUp(t *testing.T) {
 	c := newClient(t, f)
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
-	if err := c.AppendRows(ctx, "T", []map[string]any{{"id": "1"}}); !errors.Is(err, context.DeadlineExceeded) {
+	if err := appendRows(c, ctx, "T", []map[string]any{{"id": "1"}}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v", err)
 	}
 	time.Sleep(time.Second) // a backoff already started may still send once
@@ -316,7 +320,7 @@ func TestBadInputFailsBeforeAnythingIsSent(t *testing.T) {
 		"a value JSON cannot write": {{"id": "1", "v": make(chan int)}},
 	}
 	for name, rows := range cases {
-		if err := c.AppendRows(context.Background(), "T", rows); err == nil {
+		if err := appendRows(c, context.Background(), "T", rows); err == nil {
 			t.Errorf("%s: want an error", name)
 		}
 	}
@@ -335,11 +339,65 @@ func TestBadInputFailsBeforeAnythingIsSent(t *testing.T) {
 	}
 }
 
+type failingMarshaler struct{}
+
+func (failingMarshaler) MarshalJSON() ([]byte, error) { return nil, errors.New("bad value 555-0100") }
+
+func TestAnEncodeErrorDoesNotQuoteTheValue(t *testing.T) {
+	c := newClient(t, &fake{})
+	for _, v := range []any{json.Number("555-0100"), failingMarshaler{}} {
+		err := appendRows(c, context.Background(), "T", []map[string]any{{"phone": v}})
+		if err == nil || strings.Contains(err.Error(), "555-0100") {
+			t.Errorf("%T: err = %v, want an error without the value", v, err)
+		}
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// Instrumentation and mocking libraries replace http.DefaultTransport.
+func TestNewAcceptsAReplacedDefaultTransport(t *testing.T) {
+	orig := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = orig })
+	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("offline")
+	})
+	c, err := New(Config{Account: "a", User: "u", PrivateKey: testPEM(t), Database: "DB", Schema: "SC"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Ping(context.Background()); err == nil || !strings.Contains(err.Error(), "offline") {
+		t.Fatalf("Ping err = %v, want it to go through the replaced transport", err)
+	}
+}
+
+func TestAnEmptyIngestHostIsAnErrorAndNotKept(t *testing.T) {
+	hosts := 0
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hosts++
+	}))
+	defer srv.Close()
+	c, err := New(Config{Account: "a", User: "u", PrivateKey: testPEM(t), Database: "DB", Schema: "SC", BaseURL: srv.URL, HTTPClient: srv.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := c.Connect(context.Background()); err == nil || !strings.Contains(err.Error(), "empty") {
+			t.Fatalf("Connect err = %v, want the empty host reported", err)
+		}
+	}
+	if hosts != 2 {
+		t.Errorf("host asked %d times, want 2", hosts)
+	}
+}
+
 // Snowflake's message can quote a row, and callers log errors, so it never reaches them.
 func TestAnAppendErrorCarriesTheCodeButNotSnowflakesMessage(t *testing.T) {
 	f := &fake{appendStatus: []int{400}}
 	c := newClient(t, f)
-	err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "1"}})
+	err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}})
 	var se *StatusError
 	if !errors.As(err, &se) || se.Code != "ERR_TEST" || se.Message != "" || strings.Contains(err.Error(), "row is bad") {
 		t.Fatalf("err = %v", err)
@@ -409,16 +467,16 @@ func TestAPanicBecomesAnErrorAndTheClientKeepsWorking(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
 
-	err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "1"}, {"id": "2", "v": panicky{}}})
+	err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}, {"id": "2", "v": panicky{}}})
 	if err == nil || !strings.Contains(err.Error(), "row 1") || strings.Contains(err.Error(), "secret") {
 		t.Fatalf("encode panic: err = %v, want an error naming row 1 and not the value", err)
 	}
 
 	c.http.Transport = &panicTransport{next: c.http.Transport}
-	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "3"}}); err == nil {
+	if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "3"}}); err == nil {
 		t.Fatal("send panic: want an error")
 	}
-	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "4"}}); err != nil {
+	if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "4"}}); err != nil {
 		t.Fatalf("after a panic: %v", err)
 	}
 	if n := c.budget.held(); n != 0 {
@@ -429,8 +487,8 @@ func TestAPanicBecomesAnErrorAndTheClientKeepsWorking(t *testing.T) {
 func TestAnOversizedRowIsTooLargeAndNothingIsSent(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
-	rows := []map[string]any{{"id": "1"}, {"id": "2", "v": strings.Repeat("x", MaxRow)}}
-	if err := c.AppendRows(context.Background(), "T", rows); !errors.Is(err, ErrTooLarge) || f.count() != 0 {
+	rows := []map[string]any{{"id": "1"}, {"id": "2", "v": strings.Repeat("x", maxRow)}}
+	if err := appendRows(c, context.Background(), "T", rows); !errors.Is(err, ErrTooLarge) || f.count() != 0 {
 		t.Fatalf("err = %v, requests = %d; want ErrTooLarge and no request", err, f.count())
 	}
 }
@@ -446,7 +504,7 @@ func TestRowsThatDoNotCompressAreSplitUnderTheCap(t *testing.T) {
 		rand.Read(noise)
 		rows = append(rows, map[string]any{"id": fmt.Sprint(i), "v": hex.EncodeToString(noise)})
 	}
-	if err := c.AppendRows(context.Background(), "T", rows); err != nil {
+	if err := appendRows(c, context.Background(), "T", rows); err != nil {
 		t.Fatal(err)
 	}
 	seen := map[string]bool{}
@@ -498,7 +556,7 @@ func TestManyCallersShareAFixedNumberOfWorkers(t *testing.T) {
 				for j := range rows {
 					rows[j] = map[string]any{"id": fmt.Sprintf("%d-%d-%d", w, i, j)}
 				}
-				if err := c.AppendRows(context.Background(), fmt.Sprint("P", (w+i)%pipes), rows); err != nil {
+				if err := appendRows(c, context.Background(), fmt.Sprint("P", (w+i)%pipes), rows); err != nil {
 					t.Error(err)
 				}
 			}
@@ -561,7 +619,7 @@ func TestAppendTablesStoresEveryTableOrSendsNothingOnABadRow(t *testing.T) {
 	before := f.count()
 	bad := map[string][]map[string]any{
 		"A": {{"id": "a3"}},
-		"B": {{"id": "b2", "v": strings.Repeat("x", MaxRow)}},
+		"B": {{"id": "b2", "v": strings.Repeat("x", maxRow)}},
 	}
 	err := c.AppendTables(context.Background(), bad)
 	if !errors.Is(err, ErrTooLarge) || !strings.Contains(err.Error(), "B") || f.count() != before {
@@ -579,7 +637,7 @@ func TestTheDefaultPoolIsOneWorker(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := c.AppendRows(context.Background(), fmt.Sprint("P", w%4), []map[string]any{{"id": fmt.Sprint(w)}}); err != nil {
+			if err := appendRows(c, context.Background(), fmt.Sprint("P", w%4), []map[string]any{{"id": fmt.Sprint(w)}}); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -607,7 +665,7 @@ func TestOneBusyPipeCannotTakeEveryWorker(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := range 5 {
-				if err := c.AppendRows(context.Background(), "HOT", []map[string]any{{"id": fmt.Sprint(w, "-", i)}}); err != nil {
+				if err := appendRows(c, context.Background(), "HOT", []map[string]any{{"id": fmt.Sprint(w, "-", i)}}); err != nil {
 					t.Error(err)
 				}
 			}
@@ -655,7 +713,7 @@ func TestQueuedRowsStayUnderTheCapAndCallersWaitForRoom(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 			defer cancel()
 			rows := []map[string]any{{"id": fmt.Sprint(w), "v": strings.Repeat("x", 400)}}
-			switch err := c.AppendRows(ctx, fmt.Sprint("P", w%3), rows); {
+			switch err := appendRows(c, ctx, fmt.Sprint("P", w%3), rows); {
 			case err == nil:
 				ok.Add(1)
 			case errors.Is(err, context.DeadlineExceeded):
@@ -685,7 +743,7 @@ func TestACallBiggerThanTheCapIsNotStuck(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)
 	c.budget.limit = 100
-	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"v": strings.Repeat("x", 1000)}}); err != nil {
+	if err := appendRows(c, context.Background(), "T", []map[string]any{{"v": strings.Repeat("x", 1000)}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -695,7 +753,7 @@ func TestACallBiggerThanTheCapIsNotStuck(t *testing.T) {
 func TestAnOutageIsBoundedAndTheClientRecovers(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f, func(cfg *Config) { cfg.NumWorkers = 2 })
-	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "warm"}}); err != nil {
+	if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "warm"}}); err != nil {
 		t.Fatal(err)
 	}
 	base := runtime.NumGoroutine()
@@ -712,7 +770,7 @@ func TestAnOutageIsBoundedAndTheClientRecovers(t *testing.T) {
 			defer wg.Done()
 			for i := 0; i < 8; i++ {
 				ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
-				err := c.AppendRows(ctx, fmt.Sprint("P", w%3), []map[string]any{{"id": fmt.Sprint(w, "-", i)}})
+				err := appendRows(c, ctx, fmt.Sprint("P", w%3), []map[string]any{{"id": fmt.Sprint(w, "-", i)}})
 				cancel()
 				if err == nil {
 					t.Error("an append stored during the outage")
@@ -742,7 +800,7 @@ func TestAnOutageIsBoundedAndTheClientRecovers(t *testing.T) {
 	if n := c.budget.held(); n != 0 {
 		t.Errorf("%d bytes still held after the outage", n)
 	}
-	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "after"}}); err != nil {
+	if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "after"}}); err != nil {
 		t.Fatalf("after the outage: %v", err)
 	}
 }
@@ -760,7 +818,7 @@ func TestAHungTokenEndpointDoesNotHoldCallers(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 			defer cancel()
 			start := time.Now()
-			if err := c.AppendRows(ctx, "T", []map[string]any{{"id": "1"}}); !errors.Is(err, context.DeadlineExceeded) {
+			if err := appendRows(c, ctx, "T", []map[string]any{{"id": "1"}}); !errors.Is(err, context.DeadlineExceeded) {
 				t.Errorf("err = %v", err)
 			}
 			if took := time.Since(start); took > time.Second {
@@ -772,7 +830,7 @@ func TestAHungTokenEndpointDoesNotHoldCallers(t *testing.T) {
 	close(f.tokenGate)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := c.AppendRows(ctx, "T", []map[string]any{{"id": "2"}}); err != nil {
+	if err := appendRows(c, ctx, "T", []map[string]any{{"id": "2"}}); err != nil {
 		t.Fatalf("after the token endpoint recovered: %v", err)
 	}
 }
@@ -790,12 +848,12 @@ func TestWaitingForTheTokenLockEndsAtTheDeadline(t *testing.T) {
 	}
 }
 
-// The checkpoint contract: when AppendRows returns nil the rows are already stored.
-func TestAppendRowsReturnsOnlyOnceTheRowsAreStored(t *testing.T) {
+// The checkpoint contract: when an append returns nil the rows are already stored.
+func TestAppendReturnsOnlyOnceTheRowsAreStored(t *testing.T) {
 	f := &fake{delay: 30 * time.Millisecond}
 	c := newClient(t, f)
 	for i := 1; i <= 4; i++ {
-		if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": fmt.Sprint(i)}}); err != nil {
+		if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": fmt.Sprint(i)}}); err != nil {
 			t.Fatal(err)
 		}
 		if n := len(f.stored()["T"]); n != i {
@@ -808,7 +866,7 @@ func TestCloseWaitsForAppendsThenRejectsNewOnes(t *testing.T) {
 	f := &fake{delay: 50 * time.Millisecond}
 	c := newClient(t, f)
 	errc := make(chan error)
-	go func() { errc <- c.AppendRows(context.Background(), "T", []map[string]any{{"id": "1"}}) }()
+	go func() { errc <- appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}}) }()
 	time.Sleep(10 * time.Millisecond)
 	if err := c.Close(context.Background()); err != nil {
 		t.Fatal(err)
@@ -816,7 +874,7 @@ func TestCloseWaitsForAppendsThenRejectsNewOnes(t *testing.T) {
 	if err := <-errc; err != nil || len(f.stored()["T"]) != 1 {
 		t.Fatalf("in-flight append: err = %v, stored = %d", err, len(f.stored()["T"]))
 	}
-	if err := c.AppendRows(context.Background(), "T", []map[string]any{{"id": "2"}}); !errors.Is(err, ErrClosed) {
+	if err := appendRows(c, context.Background(), "T", []map[string]any{{"id": "2"}}); !errors.Is(err, ErrClosed) {
 		t.Fatalf("after Close: err = %v", err)
 	}
 }
@@ -825,7 +883,7 @@ func TestCloseDeadlineCutsOffRequestsInFlight(t *testing.T) {
 	f := &fake{stall: true}
 	c := newClient(t, f)
 	errc := make(chan error)
-	go func() { errc <- c.AppendRows(context.Background(), "T", []map[string]any{{"id": "1"}}) }()
+	go func() { errc <- appendRows(c, context.Background(), "T", []map[string]any{{"id": "1"}}) }()
 	time.Sleep(50 * time.Millisecond)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -833,11 +891,11 @@ func TestCloseDeadlineCutsOffRequestsInFlight(t *testing.T) {
 		t.Fatalf("Close err = %v", err)
 	}
 	if err := <-errc; !errors.Is(err, ErrClosed) {
-		t.Fatalf("AppendRows err = %v, want ErrClosed", err)
+		t.Fatalf("append err = %v, want ErrClosed", err)
 	}
 }
 
-func TestRetryAfterReadsSecondsAndDates(t *testing.T) {
+func TestRetryAfterReadsSeconds(t *testing.T) {
 	cases := []struct {
 		in   string
 		want time.Duration
@@ -846,7 +904,6 @@ func TestRetryAfterReadsSecondsAndDates(t *testing.T) {
 		{"3", 3 * time.Second},
 		{"-1", 0},
 		{"soon", 0},
-		{time.Now().Add(-time.Hour).UTC().Format(http.TimeFormat), 0},
 	}
 	for _, tc := range cases {
 		if got := retryAfter(tc.in); got != tc.want {
@@ -945,6 +1002,10 @@ func TestQueryWaitsForARunningStatementAndReadsEveryPartition(t *testing.T) {
 
 func TestQueryReportsTheSQLError(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req["warehouse"] != nil || req["role"] != nil {
+			t.Errorf("request = %v, %v; want no warehouse or role when unset", req, err)
+		}
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		fmt.Fprint(w, `{"code": "002003", "message": "Schema 'SC' does not exist"}`)
 	}))
