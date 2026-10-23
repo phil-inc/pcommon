@@ -208,6 +208,12 @@ func appendRows(c *Client, ctx context.Context, pipe string, rows []map[string]a
 	return c.AppendTables(ctx, map[string][]map[string]any{pipe: rows})
 }
 
+func (b *budget) held() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.used
+}
+
 func TestAppendSendsEveryRowInOrder(t *testing.T) {
 	f := &fake{}
 	c := newClient(t, f)

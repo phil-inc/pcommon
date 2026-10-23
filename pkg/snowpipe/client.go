@@ -35,12 +35,11 @@ type Config struct {
 
 // Client is safe for concurrent use. Create one per schema and share it.
 type Client struct {
-	cfg     Config
-	http    *http.Client
-	ownHTTP bool
-	auth    auth
-	zstd    *zstd.Encoder
-	budget  budget
+	cfg    Config
+	http   *http.Client
+	auth   auth
+	zstd   *zstd.Encoder
+	budget budget
 
 	// ctx is cancelled by Close to cut off requests in flight.
 	ctx    context.Context
@@ -53,7 +52,6 @@ type Client struct {
 	closed   bool
 	stopping bool
 
-	start   sync.Once
 	calls   sync.WaitGroup
 	workers sync.WaitGroup
 }
@@ -81,7 +79,6 @@ func New(cfg Config) (*Client, error) {
 	c := &Client{cfg: cfg, http: cfg.HTTPClient, zstd: enc, pipes: map[string]*pipeQueue{}}
 	if c.http == nil {
 		c.http = &http.Client{Timeout: time.Minute, Transport: newTransport()}
-		c.ownHTTP = true
 	}
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
@@ -98,6 +95,10 @@ func New(cfg Config) (*Client, error) {
 	c.budget = newBudget(maxQueued)
 	c.cond = sync.NewCond(&c.mu)
 	c.ctx, c.cancel = context.WithCancel(context.Background())
+	for range cfg.NumWorkers {
+		c.workers.Add(1)
+		go c.work()
+	}
 	return c, nil
 }
 
@@ -147,9 +148,6 @@ func (c *Client) Close(ctx context.Context) error {
 
 	cutOff := !stop() // ctx ended before the workers did
 	c.cancel()
-	if c.ownHTTP {
-		c.http.CloseIdleConnections()
-	}
 	if cutOff {
 		return ctx.Err()
 	}

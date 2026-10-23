@@ -13,37 +13,29 @@ type pipeQueue struct {
 	ready    bool // in Client.ready
 }
 
-// enqueue cuts the call's rows into chunks and queues them, starting the workers on first use.
+// enqueue cuts the call's rows into chunks and queues them. Workers see none of them until
+// c.mu is released, so pending is set in time.
 func (c *Client) enqueue(cl *call, pipes []encodedPipe) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
 		return ErrClosed
 	}
-	c.start.Do(func() {
-		for range c.cfg.NumWorkers {
-			c.workers.Add(1)
-			go c.work()
-		}
-	})
 	c.calls.Add(1)
 
-	chunks := make([][]*chunk, len(pipes))
 	n := 0
-	for i, p := range pipes {
-		chunks[i] = cut(cl, p)
-		n += len(chunks[i])
-	}
-	cl.pending.Store(int32(n))
-	for i, p := range pipes {
+	for _, p := range pipes {
 		q := c.pipes[p.pipe]
 		if q == nil {
 			q = &pipeQueue{name: p.pipe}
 			c.pipes[p.pipe] = q
 		}
-		q.chunks = append(q.chunks, chunks[i]...)
+		chunks := cut(cl, p)
+		n += len(chunks)
+		q.chunks = append(q.chunks, chunks...)
 		c.markReady(q)
 	}
+	cl.pending.Store(int32(n))
 	return nil
 }
 
@@ -158,10 +150,4 @@ func (b *budget) release(n int) {
 	close(b.freed)
 	b.freed = make(chan struct{})
 	b.mu.Unlock()
-}
-
-func (b *budget) held() int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.used
 }

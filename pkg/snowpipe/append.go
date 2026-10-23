@@ -29,9 +29,6 @@ func (c *Client) AppendTables(ctx context.Context, tables map[string][]map[strin
 			err = fmt.Errorf("snowpipe: internal error: %v", p)
 		}
 	}()
-	if err := ctx.Err(); err != nil {
-		return err
-	}
 	encoded, size, err := encodeTables(tables)
 	if err != nil || len(encoded) == 0 {
 		return err
