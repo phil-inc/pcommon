@@ -267,6 +267,8 @@ func TestAppendResponses(t *testing.T) {
 	}{
 		{"an expired token is renewed and the same rowset sent again", []int{401, 200}, true, false, 2},
 		{"a third 401 in a row goes back to the caller", []int{401, 401, 401}, false, false, 3},
+		{"a 403 is renewed like a 401", []int{403, 200}, true, false, 2},
+		{"a closed request at the proxy is retried", []int{499}, true, false, 2},
 		{"a body too large is ErrTooLarge", []int{413}, false, true, 1},
 		{"a bad request goes back to the caller", []int{400}, false, false, 1},
 		{"a missing pipe goes back to the caller", []int{404}, false, false, 1},
@@ -291,8 +293,8 @@ func TestAppendResponses(t *testing.T) {
 					t.Errorf("try %d = %+v, want requestId %s and retryCount %d", i, a, reqs[0].requestID, i)
 				}
 			}
-			if tc.status[0] == http.StatusUnauthorized && reqs[0].token == reqs[1].token {
-				t.Error("a 401 did not get a new token")
+			if (tc.status[0] == http.StatusUnauthorized || tc.status[0] == http.StatusForbidden) && reqs[0].token == reqs[1].token {
+				t.Errorf("a %d did not get a new token", tc.status[0])
 			}
 		})
 	}

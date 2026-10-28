@@ -90,7 +90,8 @@ func (c *Client) post(r *request) error {
 		switch {
 		case c.ctx.Err() != nil:
 			return fmt.Errorf("%w: %w", ErrClosed, err)
-		case isStatus && se.Status == http.StatusUnauthorized && renewals < 2:
+		// Snowflake's retry policy: a 401 or a 403 from an expired token gets a new token.
+		case isStatus && (se.Status == http.StatusUnauthorized || se.Status == http.StatusForbidden) && renewals < 2:
 			stale, renewals = token, renewals+1
 			continue
 		case isStatus && !retryable(se.Status):
@@ -111,8 +112,9 @@ func (c *Client) post(r *request) error {
 	}
 }
 
+// retryable follows Snowflake's REST retry policy; 499 is a client-closed request at its proxy.
 func retryable(status int) bool {
-	return status == http.StatusRequestTimeout || status == http.StatusTooManyRequests || status >= 500
+	return status == http.StatusRequestTimeout || status == http.StatusTooManyRequests || status == 499 || status >= 500
 }
 
 // attempt sends one try. It returns the token it used and the Retry-After wait. The try is cut

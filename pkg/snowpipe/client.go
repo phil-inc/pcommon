@@ -30,7 +30,7 @@ type Config struct {
 	BaseURL    string       // replaces https://<Account>.snowflakecomputing.com
 	HTTPClient *http.Client // default: 1 minute timeout, 64 idle connections per host
 
-	NumWorkers int // goroutines sending rows, and so requests in flight; default 1
+	NumWorkers int // goroutines sending rows for all pipes; one pipe uses at most max(1, NumWorkers/2); default 1
 }
 
 // Client is safe for concurrent use. Create one per schema and share it.
