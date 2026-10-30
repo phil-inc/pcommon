@@ -1,13 +1,12 @@
 package internal
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 )
 
-func NewQueryBuilder(DB *sql.DB) *QueryBuilderImpl {
-	return &QueryBuilderImpl{db: DB}
+func NewQueryBuilder(db DBExecutor) *QueryBuilderImpl {
+	return &QueryBuilderImpl{db: db}
 }
 
 func (qb *QueryBuilderImpl) Table(model Model) QueryBuilder {
@@ -75,12 +74,11 @@ func (qb *QueryBuilderImpl) Insert(model interface{}) (Result, error) {
 
 	}
 
-	result, err := qb.db.Exec(query, values...)
+	rowsAffected, err := qb.db.Exec(query, values...)
 	if err != nil {
 		return Result{}, err
 	}
 
-	rowsAffected, _ := result.RowsAffected()
 	return Result{RowsAffected: rowsAffected}, nil
 }
 
@@ -138,12 +136,11 @@ func (qb *QueryBuilderImpl) Update() (Result, error) {
 		return Result{RowsAffected: int64(rowsAffected), Returning: returningResults}, nil
 	}
 
-	result, err := qb.db.Exec(query, args...)
+	rowsAffected, err := qb.db.Exec(query, args...)
 	if err != nil {
 		return Result{}, err
 	}
 
-	rowsAffected, _ := result.RowsAffected()
 	return Result{RowsAffected: rowsAffected}, nil
 }
 
@@ -173,19 +170,14 @@ func (qb *QueryBuilderImpl) Select() (interface{}, error) {
 
 	results := []map[string]interface{}{}
 	for rows.Next() {
+		values, err := rows.Values()
+		if err != nil {
+			return nil, fmt.Errorf("error fetching row values: %w", err)
+		}
+
 		rowMap := make(map[string]interface{})
-		columnValues := make([]interface{}, len(columns))
-		columnPointers := make([]interface{}, len(columns))
-		for i := range columnValues {
-			columnPointers[i] = &columnValues[i]
-		}
-
-		if err := rows.Scan(columnPointers...); err != nil {
-			return nil, fmt.Errorf("error scanning row: %w", err)
-		}
-
 		for i, colName := range columns {
-			rowMap[colName] = columnValues[i]
+			rowMap[colName] = values[i]
 		}
 
 		results = append(results, rowMap)
@@ -215,11 +207,9 @@ func (qb *QueryBuilderImpl) Delete() (Result, error) {
 	query := fmt.Sprintf("DELETE FROM %s %s", qb.tableName, qb.where)
 
 	// Execute the query with the `where` arguments
-	result, err := qb.db.Exec(query, qb.whereArgs...)
+	rowsAffected, err := qb.db.Exec(query, qb.whereArgs...)
 	if err != nil {
 		return Result{}, fmt.Errorf("delete operation failed: %w", err)
 	}
-
-	rowsAffected, _ := result.RowsAffected()
 	return Result{RowsAffected: rowsAffected}, nil
 }
