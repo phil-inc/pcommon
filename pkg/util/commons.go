@@ -699,8 +699,17 @@ func GetFirstWordsFromString(value string, count int) string {
 	return value
 }
 
-// CleanUpEmail Clean up an email we receive in an API request
+// CleanUpEmail Clean up an email we receive in an API request.
+// It also strips Unicode format characters (category Cf: zero-width space U+200B, zero-width
+// joiners, word joiner U+2060, BOM U+FEFF, soft hyphen, ...). They are invisible in a UI but
+// fail IsEmailValid, so a pasted or transcribed email carrying one blocked sign-up (BRUN-7078).
 func CleanUpEmail(email string) string {
+	email = strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, email)
 	te := TrimAndLower(email)
 	if strings.HasSuffix(te, ".con") {
 		te = strings.Replace(te, ".con", ".com", 1)
