@@ -6,6 +6,7 @@ type SMSRequest struct {
 	Payload                SMSPayload     `json:"payload"`
 	ShortCodeAccountID     string         `json:"short_code_account_id,omitempty"` // SMS-only; selects a short code via the comm service short_codes map (e.g. "default", "axsome_oms"). Absent resolves to "default". Serialized as the top-level "short_code_account_id" field the comm service expects.
 	SkipDuplicateDetection bool           `json:"skip_duplicate_detection"`
+	IdempotencyKey         string         `json:"idempotency_key,omitempty"` // Optional, max 255 chars. A repeat key from the same service returns the original request (HTTP 200) and sends nothing.
 }
 
 type SMSPayload struct {
@@ -19,6 +20,7 @@ type VoiceMailRequest struct {
 	Payload                VoiceMailPayload `json:"payload"`
 	SkipDuplicateDetection bool             `json:"skip_duplicate_detection"`
 	Metadata               map[string]any   `json:"metadata"`
+	IdempotencyKey         string           `json:"idempotency_key,omitempty"`
 }
 
 type VoiceMailPayload struct {
@@ -32,6 +34,7 @@ type VoiceCallRequest struct {
 	Payload                VoiceCallPayload `json:"payload"`
 	SkipDuplicateDetection bool             `json:"skip_duplicate_detection"`
 	Metadata               map[string]any   `json:"metadata"`
+	IdempotencyKey         string           `json:"idempotency_key,omitempty"`
 }
 
 type VoiceCallPayload struct {
@@ -56,6 +59,7 @@ type EmailRequest struct {
 	Payload                EmailPayload   `json:"payload"`
 	SkipDuplicateDetection bool           `json:"skip_duplicate_detection"`
 	Metadata               map[string]any `json:"metadata"`
+	IdempotencyKey         string         `json:"idempotency_key,omitempty"`
 }
 
 type EmailPayload struct {
@@ -78,6 +82,7 @@ type FaxRequest struct {
 	Payload                FaxPayload     `json:"payload"`
 	SkipDuplicateDetection bool           `json:"skip_duplicate_detection"`
 	Metadata               map[string]any `json:"metadata"`
+	IdempotencyKey         string         `json:"idempotency_key,omitempty"`
 }
 
 type FaxPayload struct {

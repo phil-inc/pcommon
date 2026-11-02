@@ -483,3 +483,29 @@ func TestError(t *testing.T) {
 		assert.NotNil(t, wrappedErr.Unwrap())
 	})
 }
+
+func TestRequests_IdempotencyKeySerialization(t *testing.T) {
+	requests := map[string]func(key string) any{
+		"sms":        func(k string) any { return SMSRequest{IdempotencyKey: k} },
+		"voice_mail": func(k string) any { return VoiceMailRequest{IdempotencyKey: k} },
+		"voice_call": func(k string) any { return VoiceCallRequest{IdempotencyKey: k} },
+		"email":      func(k string) any { return EmailRequest{IdempotencyKey: k} },
+		"fax":        func(k string) any { return FaxRequest{IdempotencyKey: k} },
+	}
+
+	for name, build := range requests {
+		t.Run(name+" omits empty key", func(t *testing.T) {
+			raw, err := json.Marshal(build(""))
+			require.NoError(t, err)
+			assert.NotContains(t, string(raw), "idempotency_key")
+		})
+
+		t.Run(name+" sends key at top level", func(t *testing.T) {
+			raw, err := json.Marshal(build("order-123-attempt-1"))
+			require.NoError(t, err)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(raw, &body))
+			assert.Equal(t, "order-123-attempt-1", body["idempotency_key"])
+		})
+	}
+}
