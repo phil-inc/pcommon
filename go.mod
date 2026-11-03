@@ -1,6 +1,6 @@
 module github.com/phil-inc/pcommon
 
-go 1.23
+go 1.24
 
 toolchain go1.24.6
 
@@ -18,7 +18,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jlaffaye/ftp v0.0.0-20220310202011-d2c44e311e78
-	github.com/klauspost/compress v1.18.4
+	github.com/klauspost/compress v1.18.7
 	github.com/knadh/koanf v1.4.2
 	github.com/lib/pq v1.10.7
 	github.com/narup/gconfig v0.0.0-20220628222950-c7fd71947b03
