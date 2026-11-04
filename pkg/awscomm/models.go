@@ -27,6 +27,15 @@ type VoiceMailPayload struct {
 	ToPhoneNumber string `json:"to_phone_number"`
 	Message       string `json:"message,omitempty"`
 	TwiML         string `json:"twiml,omitempty"`
+	// CallerID optionally overrides the Twilio "From" number. It must be one of
+	// the numbers in the comm service's allowed_caller_ids allowlist; absent
+	// falls back to the configured default from number.
+	CallerID string `json:"caller_id,omitempty"`
+	// TwilioParams passes Twilio Calls parameters straight through to the
+	// provider, keyed by Twilio's own parameter names (e.g. {"Timeout": 30}
+	// for ring duration). The service ignores protected keys
+	// (To/From/Twiml/StatusCallback). Absent means Twilio's own defaults apply.
+	TwilioParams map[string]any `json:"twilio_params,omitempty"`
 }
 
 type VoiceCallRequest struct {
@@ -41,6 +50,15 @@ type VoiceCallPayload struct {
 	ToPhoneNumber string `json:"to_phone_number"`
 	Message       string `json:"message,omitempty"`
 	TwiML         string `json:"twiml,omitempty"`
+	// CallerID optionally overrides the Twilio "From" number. It must be one of
+	// the numbers in the comm service's allowed_caller_ids allowlist; absent
+	// falls back to the configured default from number.
+	CallerID string `json:"caller_id,omitempty"`
+	// TwilioParams passes Twilio Calls parameters straight through to the
+	// provider, keyed by Twilio's own parameter names (e.g. {"Timeout": 30}
+	// for ring duration). The service ignores protected keys
+	// (To/From/Twiml/StatusCallback). Absent means Twilio's own defaults apply.
+	TwilioParams map[string]any `json:"twilio_params,omitempty"`
 }
 
 type EmailRecipient struct {

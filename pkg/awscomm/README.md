@@ -91,6 +91,14 @@ request := &awscomm.VoiceMailRequest{
     Payload: awscomm.VoiceMailPayload{
         ToPhoneNumber: "+1234567890",
         Message:       "This is a voice message",
+        // CallerID is optional. When set it must be one of the numbers in the
+        // comm service `allowed_caller_ids` allowlist; otherwise the request
+        // falls back to the configured default from number.
+        CallerID: "+18005551234",
+        // TwilioParams optionally passes Twilio Calls parameters straight
+        // through, keyed by Twilio's own names (e.g. "Timeout" for ring
+        // duration). Protected keys (To/From/Twiml/StatusCallback) are ignored.
+        TwilioParams: map[string]any{"Timeout": 30},
     },
 }
 
@@ -105,6 +113,14 @@ request := &awscomm.VoiceCallRequest{
     Payload: awscomm.VoiceCallPayload{
         ToPhoneNumber: "+1234567890",
         Message:       "This is a voice message",
+        // CallerID is optional. When set it must be one of the numbers in the
+        // comm service `allowed_caller_ids` allowlist; otherwise the request
+        // falls back to the configured default from number.
+        CallerID: "+18005551234",
+        // TwilioParams optionally passes Twilio Calls parameters straight
+        // through, keyed by Twilio's own names (e.g. "Timeout" for ring
+        // duration). Protected keys (To/From/Twiml/StatusCallback) are ignored.
+        TwilioParams: map[string]any{"Timeout": 30},
     },
 }
 

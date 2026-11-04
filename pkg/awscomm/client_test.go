@@ -320,6 +320,80 @@ func TestVoiceCallRequest_MarshalsTwiMLPayload(t *testing.T) {
 	assert.NotContains(t, voicePayload, "message")
 }
 
+func TestVoiceMailPayload_CallerIDAndTwilioParamsSerialization(t *testing.T) {
+	t.Run("omitted caller_id and twilio_params are absent from payload", func(t *testing.T) {
+		raw, err := json.Marshal(VoiceMailRequest{
+			Payload: VoiceMailPayload{
+				ToPhoneNumber: "+18024712700",
+				Message:       "hello",
+			},
+		})
+		require.NoError(t, err)
+
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(raw, &body))
+		payload := body["payload"].(map[string]any)
+		assert.NotContains(t, payload, "caller_id")
+		assert.NotContains(t, payload, "twilio_params")
+	})
+
+	t.Run("set caller_id and twilio_params are present in payload", func(t *testing.T) {
+		raw, err := json.Marshal(VoiceMailRequest{
+			Payload: VoiceMailPayload{
+				ToPhoneNumber: "+18024712700",
+				Message:       "hello",
+				CallerID:      "+18005551234",
+				TwilioParams:  map[string]any{"Timeout": 30},
+			},
+		})
+		require.NoError(t, err)
+
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(raw, &body))
+		payload := body["payload"].(map[string]any)
+		assert.Equal(t, "+18005551234", payload["caller_id"])
+		twilioParams := payload["twilio_params"].(map[string]any)
+		assert.Equal(t, float64(30), twilioParams["Timeout"])
+	})
+}
+
+func TestVoiceCallPayload_CallerIDAndTwilioParamsSerialization(t *testing.T) {
+	t.Run("omitted caller_id and twilio_params are absent from payload", func(t *testing.T) {
+		raw, err := json.Marshal(VoiceCallRequest{
+			Payload: VoiceCallPayload{
+				ToPhoneNumber: "+18024712700",
+				Message:       "hello",
+			},
+		})
+		require.NoError(t, err)
+
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(raw, &body))
+		payload := body["payload"].(map[string]any)
+		assert.NotContains(t, payload, "caller_id")
+		assert.NotContains(t, payload, "twilio_params")
+	})
+
+	t.Run("set caller_id and twilio_params are present in payload", func(t *testing.T) {
+		raw, err := json.Marshal(VoiceCallRequest{
+			Payload: VoiceCallPayload{
+				ToPhoneNumber: "+18024712700",
+				Message:       "hello",
+				CallerID:      "+18005551234",
+				TwilioParams:  map[string]any{"Timeout": 45},
+			},
+		})
+		require.NoError(t, err)
+
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(raw, &body))
+		payload := body["payload"].(map[string]any)
+		assert.Equal(t, "+18005551234", payload["caller_id"])
+		twilioParams := payload["twilio_params"].(map[string]any)
+		assert.Equal(t, float64(45), twilioParams["Timeout"])
+	})
+}
+
 func TestSendEmail_ValidationErrors(t *testing.T) {
 	client := NewClient(baseURL, serviceName, serviceApiKey)
 	ctx := context.Background()
