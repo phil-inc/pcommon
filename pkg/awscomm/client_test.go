@@ -223,6 +223,16 @@ func TestVoiceMailRequest_MarshalsTwiMLPayload(t *testing.T) {
 	assert.NotContains(t, voicePayload, "message")
 }
 
+func TestFaxPayload_CallerIDSerialization(t *testing.T) {
+	raw, err := json.Marshal(FaxPayload{ToFaxNumber: "+15555550100"})
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "caller_id")
+
+	raw, err = json.Marshal(FaxPayload{ToFaxNumber: "+15555550100", CallerID: "+15555550101"})
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"caller_id":"+15555550101"`)
+}
+
 func TestSendVoiceCall_ValidationErrors(t *testing.T) {
 	client := NewClient(baseURL, serviceName, serviceApiKey)
 	ctx := context.Background()
