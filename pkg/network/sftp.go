@@ -193,20 +193,3 @@ func ReadFileFromSFTPUsingPrivateKey(user, privateKey, address, srcFile, dstFile
 
 	return ReadFileFromSFTPUsingConfig(config, address, srcFile, dstFile)
 }
-
-func ReadFileFromLegacySFTP(usr, password, address, srcFile, dstFile string) (int64, error) {
-	config := &ssh.ClientConfig{
-		User: usr,
-		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			return nil
-		},
-		Auth: []ssh.AuthMethod{
-			ssh.Password(password),
-		},
-	}
-
-	config.Ciphers = append(config.Ciphers, "aes256-cbc")
-	config.HostKeyAlgorithms = append(config.HostKeyAlgorithms, "ssh-dss")
-
-	return ReadFileFromSFTPUsingConfig(config, address, srcFile, dstFile)
-}
