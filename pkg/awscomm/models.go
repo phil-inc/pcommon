@@ -91,6 +91,7 @@ type FaxPayload struct {
 	StringData     string `json:"string_data,omitempty"`
 	StringDataType string `json:"string_data_type,omitempty"`
 	HeaderText     string `json:"header_text,omitempty"`
+	CallerID       string `json:"caller_id,omitempty"`
 }
 
 type Response struct {
